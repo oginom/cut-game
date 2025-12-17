@@ -1,6 +1,6 @@
 import './style.css';
 import { CameraView } from './components/camera/CameraView';
-import { HandTracker } from './components/camera/HandTracker';
+import { TrackingManager } from './components/camera/TrackingManager';
 
 async function main() {
   // カメラセットアップ
@@ -37,31 +37,50 @@ async function main() {
     canvas.style.pointerEvents = 'none';
     document.body.appendChild(canvas);
 
-    // ハンドトラッカー初期化
-    const handTracker = new HandTracker();
-    await handTracker.init(
+    // TrackingManager初期化
+    const trackingManager = new TrackingManager();
+    await trackingManager.init(
       {
-        maxNumHands: 2,
-        minDetectionConfidence: 0.7,
-        minTrackingConfidence: 0.5,
+        hand: {
+          maxNumHands: 2,
+          minDetectionConfidence: 0.7,
+          minTrackingConfidence: 0.5,
+        },
+        face: {
+          minDetectionConfidence: 0.7,
+        },
       },
       {
-        onResults: (hands) => {
+        onHandResults: (hands) => {
           console.log(`Detected ${hands.length} hand(s)`);
           hands.forEach((hand) => {
             console.log(`${hand.handedness}: ${hand.score.toFixed(2)}`);
+          });
+        },
+        onFaceResults: (faces) => {
+          console.log(`Detected ${faces.length} face(s)`);
+          faces.forEach((face) => {
+            console.log(`Face score: ${face.score.toFixed(2)}`);
           });
         },
       }
     );
 
     // デバッグ描画を有効化
-    handTracker.enableDebugDraw(canvas);
+    trackingManager.enableDebug(canvas);
 
     // トラッキング開始
-    await handTracker.start(videoElement);
+    await trackingManager.start(videoElement);
 
-    console.log('Hand tracking started successfully');
+    console.log('Tracking started successfully');
+
+    // パフォーマンス統計を定期的に表示
+    setInterval(() => {
+      const stats = trackingManager.getPerformanceStats();
+      console.log(
+        `FPS: ${stats.fps}, Latency: ${stats.averageLatency.toFixed(2)}ms, Hand: ${(stats.handDetectionRate * 100).toFixed(1)}%, Face: ${(stats.faceDetectionRate * 100).toFixed(1)}%`
+      );
+    }, 5000);
   } catch (error) {
     console.error('Error:', error);
     // エラーメッセージを画面に表示

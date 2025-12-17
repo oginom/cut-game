@@ -294,10 +294,63 @@ const x = landmark.x * scaleX + offsetX;
 const y = landmark.y * scaleY + offsetY;
 ```
 
-## 次のステップ
+## Step 1.4: フェイストラッキングの実装 - 完了事項
 
-Step 1.4: フェイストラッキングの実装
-- 型定義の追加（tracking.ts）
-- FaceTrackerコンポーネントの実装
-- TrackingManagerでの統合管理
-- パフォーマンス測定機能
+### 完了した作業
+
+1. **型定義ファイルの更新**
+   - [src/types/tracking.ts](src/types/tracking.ts)に顔検出用の型を追加
+   - `FaceDetection`: 顔のデータ（バウンディングボックス、キーポイント、信頼度）
+   - `FaceTrackerConfig`: 顔検出設定
+   - `FaceTrackerCallbacks`: コールバック定義
+
+2. **FaceTrackerコンポーネントの実装**
+   - [src/components/camera/FaceTracker.ts](src/components/camera/FaceTracker.ts)を作成
+   - 実装した機能:
+     - `init()`: MediaPipe FaceDetectorの初期化
+     - `start()`: 顔検出開始（requestAnimationFrameループ）
+     - `stop()`: 顔検出停止
+     - `isTracking()`: 状態確認
+     - `enableDebugDraw()` / `disableDebugDraw()`: デバッグ描画制御
+     - `onResults()`: MediaPipe結果の処理とコールバック呼び出し
+   - デバッグ描画機能:
+     - バウンディングボックス描画（シアン色）
+     - キーポイント描画（6個: 右目、左目、鼻先、口、右耳、左耳）
+     - HandTrackerと同様のobject-fit: cover対応座標変換
+
+3. **TrackingManagerの実装**
+   - [src/components/camera/TrackingManager.ts](src/components/camera/TrackingManager.ts)を作成
+   - HandTrackerとFaceTrackerを統合管理
+   - 実装した機能:
+     - `init()`: 両トラッカーの初期化
+     - `start()`: 両トラッカーの同時開始（Promise.all使用）
+     - `stop()`: 両トラッカーの停止
+     - `enableDebug()` / `disableDebug()`: 両トラッカーのデバッグ描画制御
+     - `getHandData()` / `getFaceData()`: 最新のトラッキング結果取得
+     - `getPerformanceStats()`: パフォーマンス統計取得
+   - パフォーマンス測定:
+     - FPS（フレームレート）
+     - 平均レイテンシ
+     - 手検出率（0-1）
+     - 顔検出率（0-1）
+
+4. **メインファイルの更新**
+   - [src/main.ts](src/main.ts)をTrackingManagerを使用するよう更新
+   - HandTrackerの代わりにTrackingManagerを初期化
+   - 手と顔の両方のコールバックを設定
+   - 5秒ごとにパフォーマンス統計をコンソールに出力
+
+5. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
+### 実装のポイント
+
+- **統合管理**: TrackingManagerが両トラッカーを一元管理することで、外部からの操作をシンプル化
+- **並列初期化**: `Promise.all`を使用して両トラッカーを同時に起動し、起動時間を短縮
+- **パフォーマンス測定**: requestAnimationFrameを使用してFPSを計測し、検出率も追跡
+- **同一canvas共有**: HandTrackerとFaceTrackerが同じcanvasに描画することで、両方の結果を同時に可視化
+
+### 次のステップ
+
+Phase 1のすべてのStepが完了しました。次はPhase 2の詳細計画を作成します。
