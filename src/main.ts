@@ -32,6 +32,7 @@ async function main() {
     videoElement.style.top = '0';
     videoElement.style.left = '0';
     videoElement.style.zIndex = '-1'; // 背景にする
+    videoElement.style.transform = 'scaleX(-1)'; // 左右反転（鏡像）
     container.appendChild(videoElement);
     console.log('Camera started successfully');
 
@@ -44,6 +45,7 @@ async function main() {
     debugCanvas.style.left = '0';
     debugCanvas.style.pointerEvents = 'none';
     debugCanvas.style.zIndex = '10'; // 最前面
+    debugCanvas.style.transform = 'scaleX(-1)'; // 左右反転（カメラに合わせる）
     container.appendChild(debugCanvas);
 
     // TrackingManager初期化
