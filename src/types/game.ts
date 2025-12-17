@@ -35,3 +35,10 @@ export interface RopeWithTreasure {
   speed: number;
   anchorBody: RAPIER.RigidBody; // ロープの固定点
 }
+
+export interface CutResult {
+  success: boolean;
+  ropeId: string;
+  segmentIndex: number;
+  treasure: TreasureConfig;
+}

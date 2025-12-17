@@ -3,7 +3,7 @@ import type { Scene } from '../renderer/Scene';
 import type { Physics } from './Physics';
 import { TreasureFactory } from './Treasure';
 import { RopeFactory } from './Rope';
-import type { RopeWithTreasure, RopeConfig } from '../../types/game';
+import type { RopeWithTreasure, RopeConfig, CutResult } from '../../types/game';
 
 export class GameManager {
   private scene: Scene | null = null;
@@ -172,6 +172,90 @@ export class GameManager {
    */
   public getRopes(): Map<string, RopeWithTreasure> {
     return this.ropes;
+  }
+
+  /**
+   * スクリーン座標から3D空間座標への変換
+   */
+  private screenToWorld(screenX: number, screenY: number): THREE.Vector3 {
+    if (!this.scene) {
+      throw new Error('[GameManager] Scene not initialized');
+    }
+
+    const camera = this.scene.getCamera();
+    const renderer = this.scene.getRenderer();
+
+    // 正規化デバイス座標に変換 (-1 から +1)
+    const mouse = new THREE.Vector2();
+    mouse.x = (screenX / renderer.domElement.clientWidth) * 2 - 1;
+    mouse.y = -(screenY / renderer.domElement.clientHeight) * 2 + 1;
+
+    // Raycasterを使用して3D座標を取得
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+
+    // カメラ位置から一定距離の点を取得（z=0の平面上）
+    const distance = 5; // カメラからの距離
+    const worldPoint = new THREE.Vector3();
+    raycaster.ray.at(distance, worldPoint);
+
+    return worldPoint;
+  }
+
+  /**
+   * クリック位置でロープを切断
+   */
+  public cutRopeAtPoint(point: THREE.Vector3): CutResult | null {
+    if (!this.physics) {
+      throw new Error('[GameManager] Physics not initialized');
+    }
+
+    const hitRadius = 0.5; // 当たり判定の半径
+
+    // すべてのロープをチェック
+    for (const [id, rope] of this.ropes.entries()) {
+      const segmentIndex = RopeFactory.checkHit(rope.segments, point, hitRadius);
+
+      if (segmentIndex !== null) {
+        // セグメントとの接続ジョイントを切断
+        // セグメントインデックスに対応するジョイントを切断
+        // ジョイント0: アンカーとセグメント0の接続
+        // ジョイント1: セグメント0とセグメント1の接続
+        // ...
+        // 最後のジョイント: 最後のセグメントと宝物の接続
+
+        const jointIndex = segmentIndex; // セグメントの上側のジョイントを切断
+        if (jointIndex >= 0 && jointIndex < rope.joints.length) {
+          RopeFactory.cutJoint(this.physics, rope.joints[jointIndex]);
+
+          console.log(`[GameManager] Cut rope ${id} at segment ${segmentIndex}`);
+
+          // 切断後、ロープは画面外に出るまで残るので、削除はしない
+          // 物理演算により自然に落下する
+
+          return {
+            success: true,
+            ropeId: id,
+            segmentIndex,
+            treasure: rope.treasure.config,
+          };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * クリックイベントの処理
+   */
+  public handleClick(event: MouseEvent): void {
+    const point = this.screenToWorld(event.clientX, event.clientY);
+    const result = this.cutRopeAtPoint(point);
+
+    if (result) {
+      console.log(`[GameManager] Cut successful! Treasure: ${result.treasure.type}`);
+    }
   }
 
   /**

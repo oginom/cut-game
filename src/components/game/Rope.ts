@@ -141,4 +141,25 @@ export class RopeFactory {
     const world = physics.getWorld();
     world.removeImpulseJoint(joint, true);
   }
+
+  /**
+   * ロープのセグメントとの当たり判定
+   * @returns ヒットしたセグメントのインデックス、ヒットしなければnull
+   */
+  public static checkHit(
+    segments: RopeSegment[],
+    point: THREE.Vector3,
+    radius: number
+  ): number | null {
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i];
+      const segmentPos = segment.mesh.position;
+      const distance = point.distanceTo(segmentPos);
+
+      if (distance < radius) {
+        return i;
+      }
+    }
+    return null;
+  }
 }

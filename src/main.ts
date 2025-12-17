@@ -41,6 +41,11 @@ async function main() {
   setTimeout(() => gameManager.spawnRopeWithTreasure('right'), 1000);
   setTimeout(() => gameManager.spawnRopeWithTreasure('left'), 1500);
 
+  // Step 2.4: クリックイベントリスナーを追加
+  window.addEventListener('click', (event) => {
+    gameManager.handleClick(event);
+  });
+
   console.log('Game initialized successfully');
 
   // レンダリングループを停止して、物理演算を含む新しいループを開始
