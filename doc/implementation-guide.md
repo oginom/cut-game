@@ -419,3 +419,66 @@ Phase 2では、Three.jsを使った3D描画とRapierを使った物理演算を
 ### 次のステップ
 
 Step 2.2でRapier物理エンジンを統合し、物理演算を有効化します。
+
+## Step 2.2: Rapier物理エンジンの統合 - 完了事項
+
+### 完了した作業
+
+1. **型定義ファイルの作成**
+   - [src/types/physics.ts](src/types/physics.ts)を作成（既に作成済み）
+   - `PhysicsConfig`: 物理エンジン設定（重力、タイムステップ）
+   - `RigidBodyHandle`: 剛体ハンドル（ID、剛体、メッシュ）
+
+2. **Physicsコンポーネントの実装**
+   - [src/components/game/Physics.ts](src/components/game/Physics.ts)を作成
+   - 実装した機能:
+     - `init()`: Rapierの初期化と物理ワールドの作成
+     - `step()`: 物理演算を1ステップ進める
+     - `syncMeshes()`: Three.jsメッシュの位置を物理ボディと同期
+     - `createRigidBody()`: RigidBodyの作成
+     - `createCollider()`: Colliderの作成
+     - `registerBody()` / `unregisterBody()`: 剛体とメッシュの登録・解除
+     - `getWorld()` / `getRAPIER()`: ワールドとライブラリの取得
+   - デバッグ機能:
+     - `createDebugBall()`: 落下するボール（赤色、半径0.5）
+     - `createDebugGround()`: 地面（灰色、20x0.5x20）
+
+3. **メインファイルの更新**
+   - [src/main.ts](src/main.ts)を更新
+   - Physicsの初期化（重力: y=-9.81）
+   - デバッグ用の地面とボールを作成
+   - レンダリングループを物理演算と統合:
+     - `physics.step()`: 物理演算を実行
+     - `physics.syncMeshes()`: メッシュ位置を同期
+     - Three.jsでレンダリング
+
+4. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
+### 実装のポイント
+
+- **Rapierの初期化**: `await RAPIER.init()`で初期化し、モジュールを保持
+- **物理ワールド**: 重力ベクトルを設定して`World`を作成
+- **剛体とメッシュの同期**: 物理演算後、剛体の位置・回転をメッシュに反映
+- **動的オブジェクト**: `RigidBodyDesc.dynamic()`で動的（重力影響を受ける）オブジェクトを作成
+- **固定オブジェクト**: `RigidBodyDesc.fixed()`で固定（動かない）オブジェクトを作成
+- **Collider**: 剛体に衝突判定形状を追加（球形、箱形など）
+
+### 検証方法
+
+1. `pnpm run dev`でアプリを起動
+2. ブラウザで画面を開き、以下を確認:
+   - 赤いボールが画面上方に表示される
+   - ボールが重力で落下する
+   - ボールが灰色の地面に到達して止まる
+   - 物理演算が滑らかに動作する
+3. コンソールで以下のメッセージを確認:
+   - `[Physics] Initialized with gravity: { x: 0, y: -9.81, z: 0 }`
+   - `[Physics] Debug ground created`
+   - `[Physics] Debug ball created`
+   - `Physics initialized successfully`
+
+### 次のステップ
+
+Step 2.3でロープと宝物を実装し、ロープの物理演算と画面横移動を実装します。

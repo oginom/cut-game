@@ -1,5 +1,6 @@
 import './style.css';
 import { Scene } from './components/renderer/Scene';
+import { Physics } from './components/game/Physics';
 
 // Phase 1のトラッキング機能は一時的にコメントアウト
 // import { CameraView } from './components/camera/CameraView';
@@ -22,7 +23,36 @@ async function main() {
     cameraFar: 1000,
   });
 
-  scene.start();
+  // Step 2.2: Rapier物理エンジンの統合
+  const physics = new Physics();
+  await physics.init({
+    gravity: { x: 0, y: -9.81, z: 0 },
+    timeStep: 1 / 60,
+  });
+
+  // デバッグ用の地面とボールを作成
+  physics.createDebugGround(scene.getScene());
+  physics.createDebugBall(scene.getScene());
+
+  console.log('Physics initialized successfully');
+
+  // レンダリングループを停止して、物理演算を含む新しいループを開始
+  scene.stop();
+
+  const animate = () => {
+    requestAnimationFrame(animate);
+
+    // 物理演算を実行
+    physics.step();
+
+    // メッシュの位置を物理ボディと同期
+    physics.syncMeshes();
+
+    // レンダリング
+    scene.getRenderer().render(scene.getScene(), scene.getCamera());
+  };
+
+  animate();
 
   console.log('Scene started successfully');
 
