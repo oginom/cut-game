@@ -28,7 +28,8 @@ export class Scene {
 
     // シーンの作成
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(this.config.backgroundColor);
+    // カメラ映像を背景として使用するため、背景色は設定しない
+    this.scene.background = null;
 
     // カメラの作成
     this.camera = new THREE.PerspectiveCamera(
@@ -39,10 +40,14 @@ export class Scene {
     );
     this.camera.position.z = 5;
 
-    // レンダラーの作成
-    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    // レンダラーの作成（透明背景を有効化）
+    this.renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true // 透明背景を有効化
+    });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setClearColor(0x000000, 0); // 完全に透明にする
 
     // ライティングの設定
     this.setupLights();
@@ -57,7 +62,8 @@ export class Scene {
     // 設定のマージ
     if (config) {
       this.config = { ...this.config, ...config };
-      this.scene.background = new THREE.Color(this.config.backgroundColor);
+      // カメラ映像を背景として使用するため、背景色は設定しない
+      // this.scene.background = new THREE.Color(this.config.backgroundColor);
     }
 
     // コンテナにレンダラーを追加

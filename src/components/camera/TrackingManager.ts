@@ -1,20 +1,30 @@
 import { HandTracker } from './HandTracker';
 import { FaceTracker } from './FaceTracker';
+import { GestureTracker } from './GestureTracker';
 import type {
   HandData,
   HandTrackerConfig,
   FaceDetection,
   FaceTrackerConfig,
 } from '../../types/tracking';
+import type {
+  GestureData,
+  GestureTrackerConfig,
+  GestureTrackerCallbacks,
+  Handedness,
+} from '../../types/gesture';
 
 export interface TrackingManagerConfig {
   hand: HandTrackerConfig;
   face: FaceTrackerConfig;
+  gesture?: GestureTrackerConfig;
 }
 
 export interface TrackingManagerCallbacks {
   onHandResults?: (hands: HandData[]) => void;
   onFaceResults?: (faces: FaceDetection[]) => void;
+  onGestureResults?: (gestures: Map<Handedness, GestureData>) => void;
+  onVCloseAction?: (handedness: Handedness) => void;
   onError?: (error: Error) => void;
 }
 
@@ -28,6 +38,7 @@ export interface PerformanceStats {
 export class TrackingManager {
   private handTracker: HandTracker;
   private faceTracker: FaceTracker;
+  private gestureTracker: GestureTracker;
   private callbacks: TrackingManagerCallbacks | null = null;
   private tracking = false;
 
@@ -44,10 +55,12 @@ export class TrackingManager {
   // トラッキング結果の保持
   private lastHandData: HandData[] = [];
   private lastFaceData: FaceDetection[] = [];
+  private lastGestureData: Map<Handedness, GestureData> = new Map();
 
   constructor() {
     this.handTracker = new HandTracker();
     this.faceTracker = new FaceTracker();
+    this.gestureTracker = new GestureTracker();
   }
 
   /**
@@ -83,6 +96,11 @@ export class TrackingManager {
         },
         onError: this.callbacks.onError,
       });
+
+      // GestureTrackerを初期化（configは空でもOK）
+      await this.gestureTracker.init();
+
+      console.log('[TrackingManager] All trackers initialized');
     } catch (error) {
       this.callbacks?.onError?.(
         error instanceof Error ? error : new Error(String(error))
@@ -107,11 +125,28 @@ export class TrackingManager {
     this.startPerformanceMonitoring();
 
     try {
-      // 両方のトラッカーを開始
+      // GestureTrackerのコールバック設定
+      const gestureCallbacks: GestureTrackerCallbacks = {
+        onGestureChange: () => {
+          // ジェスチャーデータを更新
+          const gestures = this.gestureTracker.getGestures();
+          this.lastGestureData = gestures;
+          this.callbacks?.onGestureResults?.(gestures);
+        },
+        onVCloseAction: (handedness) => {
+          console.log(`[TrackingManager] V-close action: ${handedness}`);
+          this.callbacks?.onVCloseAction?.(handedness);
+        },
+      };
+
+      // 全トラッカーを開始
       await Promise.all([
         this.handTracker.start(videoElement),
         this.faceTracker.start(videoElement),
+        this.gestureTracker.start(videoElement, gestureCallbacks),
       ]);
+
+      console.log('[TrackingManager] All trackers started');
     } catch (error) {
       this.tracking = false;
       this.callbacks?.onError?.(
@@ -128,6 +163,7 @@ export class TrackingManager {
     this.tracking = false;
     this.handTracker.stop();
     this.faceTracker.stop();
+    this.gestureTracker.stop();
   }
 
   /**
@@ -165,6 +201,13 @@ export class TrackingManager {
    */
   getFaceData(): FaceDetection[] {
     return this.lastFaceData;
+  }
+
+  /**
+   * 最新のジェスチャーデータを取得
+   */
+  getGestureData(): Map<Handedness, GestureData> {
+    return new Map(this.lastGestureData);
   }
 
   /**

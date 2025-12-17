@@ -711,3 +711,96 @@ Step 2.5でスコアシステムを実装します。
 Phase 2のすべてのステップが完了しました。Three.jsによる3D描画、Rapierによる物理演算、ロープと宝物のゲームメカニクス、クリック操作、スコアシステムが実装されました。
 
 次はPhase 3で、Phase 1のトラッキング機能とPhase 2のゲーム機能を統合し、手のジェスチャーでロープを切断できるようにします。
+
+---
+
+## Phase 3: ジェスチャー操作の統合
+
+Phase 3では、Phase 1で実装したハンドトラッキング機能とPhase 2で実装したゲームコア機能を統合し、手のジェスチャーでロープを切断できるようにします。
+
+詳細な実装計画は[doc/03_gesture_integration.md](03_gesture_integration.md)を参照してください。
+
+## Step 3.1: ジェスチャー認識の実装 - 完了事項
+
+### 完了した作業
+
+1. **型定義ファイルの作成**
+   - [src/types/gesture.ts](src/types/gesture.ts)を作成
+   - `GestureType`: ジェスチャーの種類（None, Victory, Closed_Fist, Open_Palm等）
+   - `Handedness`: 手の種類（Left, Right）
+   - `GestureData`: ジェスチャーデータ（ジェスチャー、手の種類、信頼度スコア）
+   - `GestureEvent`: ジェスチャーイベント（イベントタイプ、前回のジェスチャー等）
+   - `GestureTrackerConfig`: 設定
+   - `GestureTrackerCallbacks`: コールバック定義
+
+2. **GestureTrackerコンポーネントの実装**
+   - [src/components/camera/GestureTracker.ts](src/components/camera/GestureTracker.ts)を作成
+   - MediaPipe GestureRecognizerを使用してジェスチャー認識を実装
+   - 実装した機能:
+     - `init()`: GestureRecognizerの初期化（CDNからモデル読み込み）
+     - `start()`: トラッキング開始（requestAnimationFrameループ）
+     - `stop()`: トラッキング停止
+     - `isTracking()`: 状態確認
+     - `getGestures()`: 最新のジェスチャーデータ取得
+     - `trackGestures()`: トラッキングループ（VIDEO modeで実行）
+     - `onResults()`: MediaPipe結果の処理
+     - `handleGestureChange()`: ジェスチャー変化の処理
+   - ジェスチャー判定ロジック:
+     - `Victory`ジェスチャーをピースサインとして検出
+     - `Victory` → `Victory以外`への遷移でV閉じ動作を検出
+     - 左右の手を独立して認識（各手の前回のジェスチャー状態を保持）
+   - コールバック機能:
+     - `onGestureChange`: ジェスチャー変化時
+     - `onVictoryDetected`: Victoryジェスチャー検出時
+     - `onVCloseAction`: V閉じ動作検出時
+
+3. **TrackingManagerへの統合**
+   - [src/components/camera/TrackingManager.ts](src/components/camera/TrackingManager.ts)を更新
+   - GestureTrackerをHandTracker、FaceTrackerと並行して実行
+   - 追加した機能:
+     - `gestureTracker`インスタンスの追加
+     - `lastGestureData`でジェスチャーデータを保持
+     - `init()`でGestureTrackerを初期化
+     - `start()`でGestureTrackerを開始（GestureTrackerCallbacks設定）
+     - `stop()`でGestureTrackerを停止
+     - `getGestureData()`でジェスチャーデータ取得
+   - TrackingManagerCallbacksに追加:
+     - `onGestureResults`: ジェスチャー結果のコールバック
+     - `onVCloseAction`: V閉じ動作のコールバック
+
+4. **main.tsの統合更新**
+   - [src/main.ts](src/main.ts)を更新
+   - Phase 1のトラッキング機能（カメラ、ハンドトラッキング、ジェスチャー認識）を有効化
+   - Phase 2のゲーム機能と統合:
+     - カメラ映像を背景に配置（z-index: -1）
+     - デバッグcanvasを最前面に配置（z-index: 10）
+     - TrackingManagerの初期化時にジェスチャー設定を追加
+     - ジェスチャーコールバックを実装（コンソールログ出力）
+     - Three.jsレンダラーの背景を透明に設定
+     - パフォーマンス統計にトラッキング情報を追加
+
+5. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
+### 実装のポイント
+
+- **MediaPipe GestureRecognizer**: Hand Landmarkerの上位版で、ランドマーク検出とジェスチャー認識を同時実行
+- **7種類の事前定義ジェスチャー**: Victory, Closed_Fist, Open_Palm, Pointing_Up, Thumb_Up, Thumb_Down, ILoveYou
+- **V閉じ動作の判定**: Victoryから別のジェスチャー（またはNone）への遷移を検出
+- **並行実行**: HandTracker（手の位置）とGestureTracker（ジェスチャー）を並行して実行
+- **CDN使用**: MediaPipeのモデルファイルはCDN（`https://storage.googleapis.com/mediapipe-models/`）から読み込み
+
+### 検証方法
+
+1. `pnpm run dev`でアプリを起動
+2. ブラウザで画面を開き、カメラを許可
+3. 手でピースサインを作る
+4. コンソールに「Victory」が検出されたことが表示される
+5. ピースから手を閉じる（または他の形にする）動作をする
+6. コンソールに「V-close action detected」が表示される
+7. 左右の手で別々に認識されることを確認
+
+### 次のステップ
+
+Step 3.2で手の3Dモデル（カニの手）を実装し、トラッキングした手の位置に表示します。

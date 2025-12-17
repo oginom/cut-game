@@ -65,15 +65,15 @@ Phase 3では、Phase 1で実装したハンドトラッキング機能とPhase 
 
 ### 完了条件
 
-- [ ] `src/types/gesture.ts`が作成され、必要な型が定義されている
-- [ ] `src/components/camera/GestureTracker.ts`が実装されている
-- [ ] TrackingManagerにGestureTrackerが統合されている
-- [ ] ピースサイン（Victory）が正しく検出される
-- [ ] V閉じ動作（Victory→その他）が正しく検出される
-- [ ] 左右の手が独立して認識される
-- [ ] ジェスチャーの変化がコンソールに出力される
-- [ ] TypeScriptコンパイルエラーがない
-- [ ] ビルドが成功する
+- [x] `src/types/gesture.ts`が作成され、必要な型が定義されている
+- [x] `src/components/camera/GestureTracker.ts`が実装されている
+- [x] TrackingManagerにGestureTrackerが統合されている
+- [x] ピースサイン（Victory）が正しく検出される
+- [x] V閉じ動作（Victory→その他）が正しく検出される
+- [x] 左右の手が独立して認識される
+- [x] ジェスチャーの変化がコンソールに出力される
+- [x] TypeScriptコンパイルエラーがない
+- [x] ビルドが成功する
 
 ### 検証方法
 
