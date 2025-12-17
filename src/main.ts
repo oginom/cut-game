@@ -1,6 +1,7 @@
 import './style.css';
 import { Scene } from './components/renderer/Scene';
 import { Physics } from './components/game/Physics';
+import { GameManager } from './components/game/GameManager';
 
 // Phase 1のトラッキング機能は一時的にコメントアウト
 // import { CameraView } from './components/camera/CameraView';
@@ -30,17 +31,31 @@ async function main() {
     timeStep: 1 / 60,
   });
 
-  // デバッグ用の地面とボールを作成
-  physics.createDebugGround(scene.getScene());
-  physics.createDebugBall(scene.getScene());
+  // Step 2.3: GameManagerの初期化
+  const gameManager = new GameManager();
+  gameManager.init(scene, physics);
+  gameManager.start();
 
-  console.log('Physics initialized successfully');
+  // テスト用にロープ付き宝物を3つ生成
+  setTimeout(() => gameManager.spawnRopeWithTreasure('left'), 500);
+  setTimeout(() => gameManager.spawnRopeWithTreasure('right'), 1000);
+  setTimeout(() => gameManager.spawnRopeWithTreasure('left'), 1500);
+
+  console.log('Game initialized successfully');
 
   // レンダリングループを停止して、物理演算を含む新しいループを開始
   scene.stop();
 
+  let lastTime = performance.now();
   const animate = () => {
     requestAnimationFrame(animate);
+
+    const currentTime = performance.now();
+    const deltaTime = (currentTime - lastTime) / 1000;
+    lastTime = currentTime;
+
+    // ゲーム更新
+    gameManager.update(deltaTime);
 
     // 物理演算を実行
     physics.step();

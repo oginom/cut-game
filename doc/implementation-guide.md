@@ -23,13 +23,16 @@
 
 - 1つのStepが完了してから次のStepに進む
 - 各Step完了時には、完了条件をすべて満たしていることを確認する
-- 計画書のチェックボックスを更新する
+- **各Phaseの詳細計画書（例: `doc/02_game_core.md`）のチェックボックスを更新する**
 - 動作確認を行い、問題がないことを確認する
 - **各Stepの完了後、必ずユーザーの確認を取る**
 
 **一度に複数のStepを実装しない**ことが重要です。段階的な実装により、問題の早期発見と修正が可能になります。
 
-**重要**: 各Step完了後は、implementation-guideに完了内容を記録し、ユーザーに報告して次のStepへの承認を得てから進めてください。
+**重要**: 各Step完了後は、以下を実施してください:
+1. 詳細計画書（`doc/XX_phase_name.md`）の完了条件チェックボックスを更新
+2. implementation-guideに完了内容を記録
+3. ユーザーに報告して次のStepへの承認を得る
 
 ### 3. ユーザー指示を適宜implementation-guideに追加する
 
@@ -482,3 +485,82 @@ Step 2.2でRapier物理エンジンを統合し、物理演算を有効化しま
 ### 次のステップ
 
 Step 2.3でロープと宝物を実装し、ロープの物理演算と画面横移動を実装します。
+
+## Step 2.3: ロープと宝物の実装 - 完了事項
+
+### 完了した作業
+
+1. **型定義ファイルの作成**
+   - [src/types/game.ts](src/types/game.ts)を作成
+   - `RopeSegment`: ロープのセグメント（剛体、メッシュ）
+   - `RopeConfig`: ロープ設定（セグメント数、長さ、半径、質量）
+   - `TreasureConfig`: 宝物設定（種類、スコア、質量、サイズ）
+   - `Treasure`: 宝物データ（剛体、メッシュ、設定）
+   - `RopeWithTreasure`: ロープと宝物のセット（ID、セグメント、宝物、ジョイント、方向、速度、アンカー）
+
+2. **Treasureコンポーネントの実装**
+   - [src/components/game/Treasure.ts](src/components/game/Treasure.ts)を作成
+   - `TreasureFactory`クラス:
+     - `getConfig()`: 宝物の種類ごとの設定（金: 100点、銀: 50点、銅: 30点）
+     - `create()`: 宝物の作成（箱形メッシュ、動的剛体、コライダー）
+   - 宝物の色分け: 金色、銀色、銅色
+
+3. **Ropeコンポーネントの実装**
+   - [src/components/game/Rope.ts](src/components/game/Rope.ts)を作成
+   - `RopeFactory`クラス:
+     - `create()`: ロープのセグメント作成（円柱メッシュ、カプセルコライダー）
+     - `connectSegments()`: Revolute Jointでセグメントを接続
+     - `attachTreasure()`: 宝物をロープの最後のセグメントに接続
+     - `cutJoint()`: ジョイントの切断
+   - アンカーポイント: Kinematic Position Based（固定点として動かせる）
+   - ジョイント: Revolute Joint（回転ジョイント、X軸周り）
+
+4. **GameManagerコンポーネントの実装**
+   - [src/components/game/GameManager.ts](src/components/game/GameManager.ts)を作成
+   - 実装した機能:
+     - `init()`: シーンと物理エンジンの参照を保持
+     - `start()`: ゲーム開始
+     - `spawnRopeWithTreasure()`: ロープ付き宝物の生成（左右指定可能）
+     - `update()`: 各ロープの横移動処理、画面外判定
+     - `removeRope()`: ロープの削除（ジョイント、セグメント、宝物、アンカー）
+     - `getRopes()`: アクティブなロープのリスト取得
+   - ロープの横移動: アンカーをKinematicで移動
+   - 画面外判定: |x| > 10 で削除
+
+5. **メインファイルの更新**
+   - [src/main.ts](src/main.ts)を更新
+   - GameManagerの初期化
+   - テスト用にロープ付き宝物を3つ生成（左、右、左）
+   - レンダリングループに`gameManager.update(deltaTime)`を追加
+
+6. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
+### 実装のポイント
+
+- **ロープの物理演算**: 複数のセグメントをRevolute Jointで連結し、柔軟な揺れを実現
+- **Kinematic Body**: アンカーをKinematicにすることで、物理演算の影響を受けずに制御可能
+- **ジョイントの接続**: 各セグメントの端点を正確に指定して連結
+- **宝物の種類**: ランダムに金・銀・銅を選択し、スコアと質量が異なる
+- **メモリ管理**: 画面外に出たロープを自動削除してメモリリークを防止
+
+### 検証方法
+
+1. `pnpm run dev`でアプリを起動
+2. ブラウザで画面を開き、以下を確認:
+   - 3本のロープ付き宝物が出現する
+   - ロープが物理的に揺れている
+   - ロープが画面を横切る（左から右、または右から左）
+   - 宝物の色が異なる（金色、銀色、銅色）
+   - 画面外に出たロープが消える
+3. コンソールで以下のメッセージを確認:
+   - `[GameManager] Initialized`
+   - `[GameManager] Started`
+   - `[GameManager] Spawned rope with XXX treasure (rope_0)`
+   - `Game initialized successfully`
+   - ロープが画面外に出た後: `[GameManager] Removed rope (rope_0)`
+
+### 次のステップ
+
+Step 2.4でクリックによるロープ切断を実装します。
