@@ -4,12 +4,16 @@ import type { Physics } from './Physics';
 import { TreasureFactory } from './Treasure';
 import { RopeFactory } from './Rope';
 import type { RopeWithTreasure, RopeConfig, CutResult } from '../../types/game';
+import { ScoreManager } from './ScoreManager';
+import { ScoreDisplay } from '../ui/ScoreDisplay';
 
 export class GameManager {
   private scene: Scene | null = null;
   private physics: Physics | null = null;
   private ropes: Map<string, RopeWithTreasure> = new Map();
   private ropeIdCounter: number = 0;
+  private scoreManager: ScoreManager = new ScoreManager();
+  private scoreDisplay: ScoreDisplay = new ScoreDisplay();
 
   // デフォルトのロープ設定
   private readonly defaultRopeConfig: RopeConfig = {
@@ -22,9 +26,16 @@ export class GameManager {
   /**
    * 初期化
    */
-  public init(scene: Scene, physics: Physics): void {
+  public init(scene: Scene, physics: Physics, container: HTMLElement): void {
     this.scene = scene;
     this.physics = physics;
+
+    // スコアマネージャーの初期化
+    this.scoreManager.init();
+
+    // スコア表示の初期化
+    this.scoreDisplay.init(container);
+
     console.log('[GameManager] Initialized');
   }
 
@@ -135,6 +146,12 @@ export class GameManager {
         this.removeRope(rope.id);
       }
     });
+
+    // スコアマネージャーの更新（コンボタイムアウトチェック）
+    this.scoreManager.update();
+
+    // スコア表示の更新
+    this.scoreDisplay.update(this.scoreManager.getScore());
   }
 
   /**
@@ -255,6 +272,15 @@ export class GameManager {
 
     if (result) {
       console.log(`[GameManager] Cut successful! Treasure: ${result.treasure.type}`);
+
+      // スコアを追加
+      const scoreEvent = this.scoreManager.addScore(result.treasure);
+
+      // スコアアニメーションを表示
+      this.scoreDisplay.showScoreAnimation(
+        scoreEvent.points,
+        new THREE.Vector2(event.clientX, event.clientY)
+      );
     }
   }
 
@@ -265,6 +291,9 @@ export class GameManager {
     // すべてのロープを削除
     const ids = Array.from(this.ropes.keys());
     ids.forEach((id) => this.removeRope(id));
+
+    // スコア表示のクリーンアップ
+    this.scoreDisplay.dispose();
 
     console.log('[GameManager] Disposed');
   }

@@ -627,3 +627,87 @@ Step 2.4でクリックによるロープ切断を実装します。
 ### 次のステップ
 
 Step 2.5でスコアシステムを実装します。
+
+## Step 2.5: スコアシステムの実装 - 完了事項
+
+### 完了した作業
+
+1. **型定義ファイルの作成**
+   - [src/types/score.ts](src/types/score.ts)を作成
+   - `ScoreData`: スコアデータ（現在のスコア、コンボ、最大コンボ、宝物総数）
+   - `ScoreEvent`: スコアイベント（得点、宝物の種類、コンボ、タイムスタンプ）
+
+2. **ScoreManagerコンポーネントの実装**
+   - [src/components/game/ScoreManager.ts](src/components/game/ScoreManager.ts)を作成
+   - 実装した機能:
+     - `init()`: スコアシステムの初期化
+     - `addScore()`: スコアの加算とコンボ判定
+       - 基本スコア: 宝物の種類に応じて（金: 100点、銀: 50点、銅: 30点）
+       - コンボボーナス: コンボごとに10%増加（例: 3コンボなら1.2倍）
+       - コンボタイムアウト: 3秒以内に次を切らないとリセット
+     - `getScore()`: 現在のスコアデータ取得
+     - `update()`: コンボタイムアウトチェック
+     - `resetCombo()`: コンボのリセット
+     - `reset()`: スコアデータの全リセット
+     - `getEvents()`: スコアイベント履歴の取得
+
+3. **ScoreDisplayコンポーネントの実装**
+   - [src/components/ui/ScoreDisplay.ts](src/components/ui/ScoreDisplay.ts)を作成
+   - 実装した機能:
+     - `init()`: UI要素の作成と配置
+       - スコア表示（左上、白色）
+       - コンボ表示（スコアの下、黄色）
+       - アニメーションコンテナ
+     - `update()`: スコアとコンボの表示更新
+       - コンボが2以上の場合のみ表示
+     - `showScoreAnimation()`: スコア加算アニメーション
+       - クリック位置に"+XXX"を表示
+       - 上にフェードアウトしながら移動
+       - 1秒後に自動削除
+     - `dispose()`: UI要素のクリーンアップ
+
+4. **GameManagerコンポーネントの更新**
+   - [src/components/game/GameManager.ts](src/components/game/GameManager.ts)を更新
+   - ScoreManagerとScoreDisplayを統合:
+     - `init()`: ScoreManagerとScoreDisplayの初期化（containerを引数に追加）
+     - `update()`: スコアマネージャーの更新とスコア表示の更新
+     - `handleClick()`: ロープ切断時にスコア加算とアニメーション表示
+     - `dispose()`: スコア表示のクリーンアップ
+
+5. **メインファイルの更新**
+   - [src/main.ts](src/main.ts)を更新
+   - `gameManager.init()`にcontainer引数を追加
+
+6. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
+### 実装のポイント
+
+- **コンボシステム**: 3秒以内に連続してロープを切るとコンボが継続し、ボーナス得点
+- **スコア計算**: 基本スコア × (1 + (コンボ - 1) × 0.1)
+- **UI配置**: position: absolute で画面左上に固定配置
+- **アニメーション**: CSS transitionを使用した滑らかなフェードアウト
+- **メモリ管理**: アニメーション終了後にDOM要素を削除
+
+### 検証方法
+
+1. `pnpm run dev`でアプリを起動
+2. ブラウザで画面を開き、以下を確認:
+   - 画面左上にスコアが表示される
+   - ロープを切ると宝物の種類に応じたスコアが加算される
+   - 連続してロープを切るとコンボが表示される
+   - コンボ中は得点にボーナスが付く
+   - スコア加算時にクリック位置にアニメーションが表示される
+   - 3秒以上間隔を空けるとコンボがリセットされる
+3. コンソールで以下のメッセージを確認:
+   - `[ScoreManager] Initialized`
+   - `[ScoreDisplay] Initialized`
+   - スコア加算時: `[ScoreManager] Score added: +XXX (treasure_type, xN combo)`
+   - コンボリセット時: `[ScoreManager] Combo reset`
+
+### Phase 2 完了
+
+Phase 2のすべてのステップが完了しました。Three.jsによる3D描画、Rapierによる物理演算、ロープと宝物のゲームメカニクス、クリック操作、スコアシステムが実装されました。
+
+次はPhase 3で、Phase 1のトラッキング機能とPhase 2のゲーム機能を統合し、手のジェスチャーでロープを切断できるようにします。

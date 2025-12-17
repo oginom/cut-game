@@ -33,7 +33,7 @@ async function main() {
 
   // Step 2.3: GameManagerの初期化
   const gameManager = new GameManager();
-  gameManager.init(scene, physics);
+  gameManager.init(scene, physics, container);
   gameManager.start();
 
   // テスト用にロープ付き宝物を3つ生成
