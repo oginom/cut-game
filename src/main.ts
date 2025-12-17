@@ -1,8 +1,40 @@
 import './style.css';
-import { CameraView } from './components/camera/CameraView';
-import { TrackingManager } from './components/camera/TrackingManager';
+import { Scene } from './components/renderer/Scene';
+
+// Phase 1のトラッキング機能は一時的にコメントアウト
+// import { CameraView } from './components/camera/CameraView';
+// import { TrackingManager } from './components/camera/TrackingManager';
 
 async function main() {
+  // Phase 2: Three.jsシーンのセットアップ
+  const scene = new Scene();
+
+  const container = document.getElementById('app');
+  if (!container) {
+    console.error('Container element not found');
+    return;
+  }
+
+  scene.init(container, {
+    backgroundColor: 0x1a1a2e,
+    cameraFov: 75,
+    cameraNear: 0.1,
+    cameraFar: 1000,
+  });
+
+  scene.start();
+
+  console.log('Scene started successfully');
+
+  // パフォーマンス統計を定期的に表示
+  setInterval(() => {
+    const stats = scene.getStats();
+    console.log(
+      `FPS: ${stats.fps}, Draw Calls: ${stats.drawCalls}, Triangles: ${stats.triangles}`
+    );
+  }, 5000);
+
+  /* Phase 1のコード（後で統合する）
   // カメラセットアップ
   const cameraView = new CameraView();
 
@@ -91,6 +123,7 @@ async function main() {
     errorDiv.style.fontSize = '16px';
     document.body.appendChild(errorDiv);
   }
+  */
 }
 
 main();
