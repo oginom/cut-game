@@ -126,10 +126,50 @@ yarn install
 - 計画書通りのディレクトリ構造を維持する
 - 新しいコンポーネントは適切なディレクトリに配置する
 
+## Step 1.2: カメラ入力の取得と表示 - 完了事項
+
+### 完了した作業
+
+1. **型定義ファイルの作成**
+   - [src/types/camera.ts](src/types/camera.ts)を作成
+   - `CameraConfig`: カメラ設定（解像度、向き）
+   - `CameraError`: エラー情報（タイプ、メッセージ）
+
+2. **CameraViewコンポーネントの実装**
+   - [src/components/camera/CameraView.ts](src/components/camera/CameraView.ts)を作成
+   - 実装した機能:
+     - `init()`: カメラ初期化とvideo要素作成
+     - `start()`: getUserMediaでカメラアクセス、ストリーム接続
+     - `stop()`: カメラストリーム停止
+     - `getVideoElement()`: video要素取得
+     - `isReady()`: 準備状態確認
+     - `classifyError()`: エラー分類（permission_denied, not_found, not_readable, unknown）
+   - iOS対応のため`playsinline`属性を追加
+
+3. **メインファイルの更新**
+   - [src/main.ts](src/main.ts)を全面的に書き換え
+   - CameraViewを使用したカメラ起動処理
+   - エラーハンドリングとエラー表示
+
+4. **スタイリングの適用**
+   - [src/style.css](src/style.css)をゲーム用にシンプル化
+   - 黒背景、余白なし、オーバーフロー非表示
+   - ビデオ要素のレスポンシブ対応
+
+5. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
+### 実装のポイント
+
+- **iOS対応**: video要素に`playsinline`属性を設定することで、iOSでインライン再生が可能
+- **エラー分類**: DOMExceptionの名前でエラータイプを判定し、適切な日本語メッセージを表示
+- **非同期処理**: video要素のメタデータ読み込み完了を`Promise`で待機
+
 ## 次のステップ
 
-Step 1.2: カメラ入力の取得と表示
-- 型定義ファイルの作成
-- CameraViewコンポーネントの実装
-- メインファイルでの動作確認
-- スタイリング
+Step 1.3: ハンドトラッキングの実装
+- 型定義ファイルの作成（tracking.ts）
+- HandTrackerコンポーネントの実装
+- デバッグ描画ユーティリティの実装
+- メインファイルでの統合

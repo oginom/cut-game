@@ -1,24 +1,35 @@
-import './style.css'
-import typescriptLogo from './typescript.svg'
-import viteLogo from '/vite.svg'
-import { setupCounter } from './counter.ts'
+import './style.css';
+import { CameraView } from './components/camera/CameraView';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <div>
-    <a href="https://vite.dev" target="_blank">
-      <img src="${viteLogo}" class="logo" alt="Vite logo" />
-    </a>
-    <a href="https://www.typescriptlang.org/" target="_blank">
-      <img src="${typescriptLogo}" class="logo vanilla" alt="TypeScript logo" />
-    </a>
-    <h1>Vite + TypeScript</h1>
-    <div class="card">
-      <button id="counter" type="button"></button>
-    </div>
-    <p class="read-the-docs">
-      Click on the Vite and TypeScript logos to learn more
-    </p>
-  </div>
-`
+async function main() {
+  const cameraView = new CameraView();
 
-setupCounter(document.querySelector<HTMLButtonElement>('#counter')!)
+  try {
+    await cameraView.init({
+      width: 1280,
+      height: 720,
+      facingMode: 'user',
+    });
+
+    await cameraView.start();
+
+    // video要素をDOMに追加
+    const videoElement = cameraView.getVideoElement();
+    videoElement.style.width = '100%';
+    videoElement.style.height = 'auto';
+    document.body.appendChild(videoElement);
+
+    console.log('Camera started successfully');
+  } catch (error) {
+    console.error('Camera error:', error);
+    // エラーメッセージを画面に表示
+    const errorDiv = document.createElement('div');
+    errorDiv.textContent = `カメラエラー: ${error}`;
+    errorDiv.style.color = 'red';
+    errorDiv.style.padding = '20px';
+    errorDiv.style.fontSize = '16px';
+    document.body.appendChild(errorDiv);
+  }
+}
+
+main();
