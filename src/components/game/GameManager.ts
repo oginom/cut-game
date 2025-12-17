@@ -6,6 +6,9 @@ import { RopeFactory } from './Rope';
 import type { RopeWithTreasure, RopeConfig, CutResult } from '../../types/game';
 import { ScoreManager } from './ScoreManager';
 import { ScoreDisplay } from '../ui/ScoreDisplay';
+import { CrabHand } from '../renderer/CrabHand';
+import { convertTo3D } from '../../utils/coordinates';
+import type { Handedness } from '../../types/gesture';
 
 export class GameManager {
   private scene: Scene | null = null;
@@ -14,6 +17,14 @@ export class GameManager {
   private ropeIdCounter: number = 0;
   private scoreManager: ScoreManager = new ScoreManager();
   private scoreDisplay: ScoreDisplay = new ScoreDisplay();
+
+  // カニの手（左右）
+  private leftHand: CrabHand | null = null;
+  private rightHand: CrabHand | null = null;
+
+  // 手の現在位置（V閉じアクション時のロープ切断に使用）
+  private leftHandPosition: THREE.Vector3 | null = null;
+  private rightHandPosition: THREE.Vector3 | null = null;
 
   // デフォルトのロープ設定
   private readonly defaultRopeConfig: RopeConfig = {
@@ -35,6 +46,18 @@ export class GameManager {
 
     // スコア表示の初期化
     this.scoreDisplay.init(container);
+
+    // カニの手を初期化
+    this.leftHand = new CrabHand({ color: 0xff6347 }); // 赤色
+    this.rightHand = new CrabHand({ color: 0xff6347 }); // 赤色
+
+    // シーンに追加
+    scene.addObject(this.leftHand.getGroup());
+    scene.addObject(this.rightHand.getGroup());
+
+    // 初期位置（画面外）
+    this.leftHand.setPosition(-100, -100, 0);
+    this.rightHand.setPosition(-100, -100, 0);
 
     console.log('[GameManager] Initialized');
   }
@@ -118,6 +141,8 @@ export class GameManager {
     this.ropes.set(id, ropeWithTreasure);
 
     console.log(`[GameManager] Spawned rope with ${treasureType} treasure (${id})`);
+    console.log(`  ロープ位置: X=${startX}, Y=${startY}, Z=${startZ} (direction: ${direction})`);
+    console.log(`  ロープのX範囲: ${direction === 'left' ? `${startX} → 0 (中央へ移動)` : `${startX} → 0 (中央へ移動)`}`);
 
     return id;
   }
@@ -285,12 +310,125 @@ export class GameManager {
   }
 
   /**
+   * 手の位置を更新
+   */
+  public updateHandPosition(handedness: Handedness, x: number, y: number): void {
+    if (!this.scene) return;
+
+    const hand = handedness === 'Left' ? this.leftHand : this.rightHand;
+    if (!hand) return;
+
+    // 2D座標（0-1の範囲）を3D座標に変換
+    const camera = this.scene.getCamera();
+    const position = convertTo3D(x, y, camera, 5);
+
+    hand.setPosition(position.x, position.y, position.z);
+    hand.setVisible(true);
+
+    // 現在位置を保存（V閉じアクション用）
+    if (handedness === 'Left') {
+      this.leftHandPosition = position;
+    } else {
+      this.rightHandPosition = position;
+    }
+  }
+
+  /**
+   * 手のジェスチャー状態を更新
+   */
+  public updateHandGesture(handedness: Handedness, isVictory: boolean): void {
+    const hand = handedness === 'Left' ? this.leftHand : this.rightHand;
+    if (!hand) return;
+
+    hand.setState(isVictory ? 'open' : 'closed');
+  }
+
+  /**
+   * 手を非表示にする
+   */
+  public hideHand(handedness: Handedness): void {
+    const hand = handedness === 'Left' ? this.leftHand : this.rightHand;
+    if (!hand) return;
+
+    hand.setVisible(false);
+
+    // 位置情報もクリア
+    if (handedness === 'Left') {
+      this.leftHandPosition = null;
+    } else {
+      this.rightHandPosition = null;
+    }
+  }
+
+  /**
+   * V閉じアクションでロープを切断
+   */
+  public handleVCloseAction(handedness: Handedness): void {
+    const position = handedness === 'Left' ? this.leftHandPosition : this.rightHandPosition;
+
+    if (!position) {
+      console.warn(`[GameManager] No position data for ${handedness} hand`);
+      return;
+    }
+
+    console.log(`[GameManager] V-close action at position:`, position);
+
+    // ロープを切断（クリックより少し大きめの判定範囲）
+    const result = this.cutRopeAtPoint(position);
+
+    if (result) {
+      console.log(`[GameManager] Cut successful via gesture! Treasure: ${result.treasure.type}`);
+
+      // スコアを追加
+      const scoreEvent = this.scoreManager.addScore(result.treasure);
+
+      // スコアアニメーションを手の位置に表示
+      // 3D座標をスクリーン座標に変換
+      if (this.scene) {
+        const screenPos = this.worldToScreen(position);
+        this.scoreDisplay.showScoreAnimation(scoreEvent.points, screenPos);
+      }
+    }
+  }
+
+  /**
+   * 3D空間座標からスクリーン座標への変換
+   */
+  private worldToScreen(worldPos: THREE.Vector3): THREE.Vector2 {
+    if (!this.scene) {
+      throw new Error('[GameManager] Scene not initialized');
+    }
+
+    const camera = this.scene.getCamera();
+    const renderer = this.scene.getRenderer();
+
+    // ワールド座標をスクリーン座標に変換
+    const vector = worldPos.clone();
+    vector.project(camera);
+
+    const screenX = (vector.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
+    const screenY = (-vector.y * 0.5 + 0.5) * renderer.domElement.clientHeight;
+
+    return new THREE.Vector2(screenX, screenY);
+  }
+
+  /**
    * クリーンアップ
    */
   public dispose(): void {
     // すべてのロープを削除
     const ids = Array.from(this.ropes.keys());
     ids.forEach((id) => this.removeRope(id));
+
+    // カニの手を削除
+    if (this.leftHand) {
+      this.leftHand.dispose();
+      this.leftHand = null;
+    }
+    if (this.rightHand) {
+      this.rightHand.dispose();
+      this.rightHand = null;
+    }
 
     // スコア表示のクリーンアップ
     this.scoreDisplay.dispose();

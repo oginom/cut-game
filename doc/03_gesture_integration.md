@@ -93,6 +93,58 @@ Phase 3では、Phase 1で実装したハンドトラッキング機能とPhase 
 
 トラッキングした手の位置に3Dモデル（カニの手）を表示し、ジェスチャーに応じてモデルを切り替えます。
 
+### 完了した作業
+
+1. **型定義の追加**
+   - [src/types/scene.ts](src/types/scene.ts)に手モデル関連の型を追加
+   - `HandState`: 手の状態（open, closed）
+   - `HandModelConfig`: 手モデルの設定（サイズ、角度、色など）
+
+2. **CrabHandコンポーネントの実装**
+   - [src/components/renderer/CrabHand.ts](src/components/renderer/CrabHand.ts)を作成
+   - プリミティブ形状でカニの手を実装:
+     - 手のひら: 球体（SphereGeometry）
+     - ハサミ: 円柱×2（CylinderGeometry）
+   - 実装した機能:
+     - `getGroup()`: Three.jsグループの取得
+     - `setPosition()`: 手の位置設定
+     - `setState()`: 手の状態設定（open/closed）
+     - `getState()`: 現在の状態取得
+     - `setVisible()`: 表示/非表示切り替え
+     - `dispose()`: メモリ解放
+   - ハサミの開閉アニメーション:
+     - 開いた状態: 60度に開く
+     - 閉じた状態: 0度（閉じる）
+
+3. **座標変換ユーティリティの実装**
+   - [src/utils/coordinates.ts](src/utils/coordinates.ts)を作成
+   - `convertTo3D()`: 2D座標（0-1）から3D座標への変換
+   - `screenTo3D()`: スクリーン座標（ピクセル）から3D座標への変換
+   - Three.jsの`Raycaster`と`unproject`を使用
+
+4. **GameManagerへの統合**
+   - [src/components/game/GameManager.ts](src/components/game/GameManager.ts)を更新
+   - 左右の手モデルを管理:
+     - `leftHand`, `rightHand`: CrabHandインスタンス
+     - `init()`で初期化してシーンに追加
+     - 初期位置は画面外（-100, -100, 0）
+   - 実装したメソッド:
+     - `updateHandPosition()`: 手の位置を更新（2D→3D変換）
+     - `updateHandGesture()`: ジェスチャーに応じて手の状態を更新
+     - `hideHand()`: 手を非表示にする
+     - `dispose()`でカニの手を解放
+
+5. **main.tsの更新**
+   - [src/main.ts](src/main.ts)を更新
+   - TrackingManagerのコールバックで手モデルを制御:
+     - `onHandResults`: 人差し指の先端（ランドマーク8）の位置を使用
+     - `onGestureResults`: Victoryジェスチャーで手を開く、それ以外で閉じる
+     - 検出されなかった手を自動的に非表示
+
+6. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
 ### タスク詳細
 
 1. **型定義の追加**
@@ -126,15 +178,15 @@ Phase 3では、Phase 1で実装したハンドトラッキング機能とPhase 
 
 ### 完了条件
 
-- [ ] `src/components/renderer/CrabHand.ts`が実装されている
-- [ ] カニの手モデル（開・閉）が作成されている
-- [ ] 手の位置にモデルが表示される
-- [ ] トラッキングした手の動きに追従する
-- [ ] ピースサインで手が開く
-- [ ] V閉じ動作で手が閉じる
-- [ ] 左右の手が独立して動作する
-- [ ] TypeScriptコンパイルエラーがない
-- [ ] ビルドが成功する
+- [x] `src/components/renderer/CrabHand.ts`が実装されている
+- [x] カニの手モデル（開・閉）が作成されている
+- [x] 手の位置にモデルが表示される
+- [x] トラッキングした手の動きに追従する
+- [x] ピースサインで手が開く
+- [x] V閉じ動作で手が閉じる
+- [x] 左右の手が独立して動作する
+- [x] TypeScriptコンパイルエラーがない
+- [x] ビルドが成功する
 
 ### 検証方法
 
@@ -179,16 +231,47 @@ V閉じ動作時にロープとの当たり判定を行い、ロープを切断�
    - 当たり判定範囲の可視化
    - 切断判定のログ出力
 
+### 完了した作業
+
+1. **GameManagerの更新**
+   - [src/components/game/GameManager.ts](src/components/game/GameManager.ts)を更新
+   - 手の現在位置を保存するプロパティを追加:
+     - `leftHandPosition`, `rightHandPosition`: 各手の3D座標を保持
+   - `updateHandPosition()`メソッドを更新:
+     - 手の位置更新時に現在位置を保存
+   - `hideHand()`メソッドを更新:
+     - 手を非表示にする際に位置情報もクリア
+   - 実装したメソッド:
+     - `handleVCloseAction()`: V閉じアクション時にロープを切断
+     - `worldToScreen()`: 3D座標をスクリーン座標に変換（スコアアニメーション用）
+
+2. **main.tsの更新**
+   - [src/main.ts](src/main.ts)を更新
+   - `onVCloseAction`コールバックを実装:
+     - `gameManager.handleVCloseAction(handedness)`を呼び出し
+     - V閉じ動作検出時にジェスチャーでロープを切断
+
+3. **ロープ切断処理の流れ**
+   - V閉じ動作検出（Victory → 非Victory）
+   - 保存されている手の位置を取得
+   - `cutRopeAtPoint()`で当たり判定とロープ切断
+   - 成功時にスコア加算
+   - 手の位置にスコアアニメーションを表示
+
+4. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
 ### 完了条件
 
-- [ ] V閉じ動作でロープとの当たり判定が実行される
-- [ ] 手の位置でロープが切断できる
-- [ ] スコアが正しく加算される
-- [ ] スコアアニメーションが手の位置に表示される
-- [ ] 左右の手でそれぞれ切断できる
-- [ ] クリック操作も引き続き機能する
-- [ ] TypeScriptコンパイルエラーがない
-- [ ] ビルドが成功する
+- [x] V閉じ動作でロープとの当たり判定が実行される
+- [x] 手の位置でロープが切断できる
+- [x] スコアが正しく加算される
+- [x] スコアアニメーションが手の位置に表示される
+- [x] 左右の手でそれぞれ切断できる
+- [x] クリック操作も引き続き機能する
+- [x] TypeScriptコンパイルエラーがない
+- [x] ビルドが成功する
 
 ### 検証方法
 
@@ -267,14 +350,32 @@ function convertTo3D(x: number, y: number, camera: THREE.Camera): THREE.Vector3 
 
 ---
 
-## Phase 3 完了後の状態
+---
 
-Phase 3が完了すると、以下が実現されます:
+## Phase 3 完了
 
-- ✅ カメラで手をトラッキング
-- ✅ ピースサインとV閉じ動作を認識
-- ✅ 手の位置にカニの手3Dモデルが表示
-- ✅ ジェスチャーでロープを切断
-- ✅ スコアが加算される
+Phase 3の全てのステップが完了しました！
+
+### 実装された機能
+
+- ✅ **Step 3.1: ジェスチャー認識**
+  - MediaPipe GestureRecognizerの統合
+  - Victoryジェスチャー（ピースサイン）の検出
+  - V閉じ動作（Victory → 非Victory）の検出
+  - 左右の手の独立した認識
+
+- ✅ **Step 3.2: 手の3Dモデル表示**
+  - カニの手モデル（CrabHand）の実装
+  - 手のトラッキング位置への追従
+  - ジェスチャーに応じた手の開閉アニメーション
+  - 2D座標から3D座標への変換
+
+- ✅ **Step 3.3: ジェスチャーでのロープ切断**
+  - V閉じ動作時のロープ切断処理
+  - 手の位置での当たり判定
+  - スコア加算とアニメーション表示
+  - クリック操作との共存
+
+### 次のフェーズ
 
 次のPhase 4では、UI画面（タイトル、セットアップ、設定、リザルト）を実装します。

@@ -69,22 +69,38 @@ async function main() {
       },
       {
         onHandResults: (hands) => {
-          if (hands.length > 0) {
-            console.log(`[Hand] Detected ${hands.length} hand(s)`);
+          // 手の位置をGameManagerに通知
+          hands.forEach((hand) => {
+            // ランドマーク8（人差し指の先端）の座標を使用
+            const indexFingerTip = hand.landmarks[8];
+            if (indexFingerTip) {
+              gameManager.updateHandPosition(hand.handedness, indexFingerTip.x, indexFingerTip.y);
+            }
+          });
+
+          // 検出されなかった手を非表示にする
+          const detectedHands = new Set(hands.map(h => h.handedness));
+          if (!detectedHands.has('Left')) {
+            gameManager.hideHand('Left');
+          }
+          if (!detectedHands.has('Right')) {
+            gameManager.hideHand('Right');
           }
         },
-        onFaceResults: (faces) => {
-          if (faces.length > 0) {
-            console.log(`[Face] Detected ${faces.length} face(s)`);
-          }
+        onFaceResults: () => {
+          // 顔のトラッキングは現在使用しない
         },
         onGestureResults: (gestures) => {
+          // ジェスチャーに応じて手の状態を更新
           gestures.forEach((gesture, handedness) => {
-            console.log(`[Gesture] ${handedness}: ${gesture.gesture} (${gesture.score.toFixed(2)})`);
+            const isVictory = gesture.gesture === 'Victory';
+            gameManager.updateHandGesture(handedness, isVictory);
           });
         },
         onVCloseAction: (handedness) => {
           console.log(`[V-Close Action] Detected on ${handedness} hand!`);
+          // ジェスチャーでロープを切断
+          gameManager.handleVCloseAction(handedness);
         },
         onError: (error) => {
           console.error('[Tracking Error]', error);
@@ -94,10 +110,6 @@ async function main() {
 
     // デバッグ描画を有効化
     trackingManager.enableDebug(debugCanvas);
-
-    // トラッキング開始
-    await trackingManager.start(videoElement);
-    console.log('Tracking started successfully');
 
     // Phase 2: Three.jsシーンとゲームのセットアップ
     console.log('Step 3: Setting up 3D scene...');
@@ -127,6 +139,11 @@ async function main() {
     const gameManager = new GameManager();
     gameManager.init(scene, physics, container);
     gameManager.start();
+
+    // トラッキング開始（GameManager初期化後）
+    console.log('Step 6: Starting tracking...');
+    await trackingManager.start(videoElement);
+    console.log('Tracking started successfully');
 
     // テスト用にロープ付き宝物を3つ生成
     setTimeout(() => gameManager.spawnRopeWithTreasure('left'), 500);
