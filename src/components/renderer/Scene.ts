@@ -9,8 +9,6 @@ export class Scene {
   private container: HTMLElement | null = null;
   private config: SceneConfig;
 
-  // デバッグ用のテストオブジェクト
-  private testCube: THREE.Mesh | null = null;
 
   // パフォーマンス測定
   private lastFrameTime: number = 0;
@@ -72,9 +70,6 @@ export class Scene {
     // ウィンドウリサイズイベント
     window.addEventListener('resize', this.handleResize);
 
-    // デバッグ用のテストキューブを追加
-    this.addTestCube();
-
     console.log('[Scene] Initialized');
   }
 
@@ -93,15 +88,6 @@ export class Scene {
     this.scene.add(directionalLight);
   }
 
-  /**
-   * デバッグ用のテストキューブを追加
-   */
-  private addTestCube(): void {
-    const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
-    this.testCube = new THREE.Mesh(geometry, material);
-    this.scene.add(this.testCube);
-  }
 
   /**
    * レンダリングループの開始
@@ -143,12 +129,6 @@ export class Scene {
     if (this.frameCount >= 60) {
       this.fps = Math.round(1 / deltaTime);
       this.frameCount = 0;
-    }
-
-    // テストキューブの回転
-    if (this.testCube) {
-      this.testCube.rotation.x += deltaTime;
-      this.testCube.rotation.y += deltaTime * 0.5;
     }
 
     this.renderer.render(this.scene, this.camera);
