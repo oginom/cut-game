@@ -4,18 +4,115 @@ import { TrackingManager } from "./components/camera/TrackingManager";
 import { GameManager } from "./components/game/GameManager";
 import { Physics } from "./components/game/Physics";
 import { Scene } from "./components/renderer/Scene";
+import { GameStateManager } from "./components/ui/GameStateManager";
+import { TitleScreen } from "./components/ui/TitleScreen";
+import type { Handedness } from "./types/gesture";
+import type { GameState } from "./types/ui";
+
+// グローバル変数
+let container: HTMLElement;
+let gameStateManager: GameStateManager;
+let titleScreen: TitleScreen;
+
+// ゲーム関連の変数（setupで初期化）
+let cameraView: CameraView | null = null;
+let trackingManager: TrackingManager | null = null;
+let scene: Scene | null = null;
+let physics: Physics | null = null;
+let gameManager: GameManager | null = null;
+let animationFrameId: number | null = null;
 
 async function main() {
-	const container = document.getElementById("app");
+	container = document.getElementById("app") as HTMLElement;
 	if (!container) {
 		console.error("Container element not found");
 		return;
 	}
 
 	try {
+		// GameStateManagerを初期化
+		gameStateManager = new GameStateManager();
+		gameStateManager.init({
+			onStateChange: handleStateChange,
+		});
+
+		// TitleScreenを初期化
+		titleScreen = new TitleScreen();
+		titleScreen.init(container, {
+			onStart: () => {
+				// セットアップ画面へ遷移（Step 4.2で実装予定）
+				console.log("[Main] Start button clicked - transition to setup");
+				// 仮にplayingへ遷移（Step 4.2で修正予定）
+				gameStateManager.setState("playing");
+			},
+			onSettings: () => {
+				// 設定画面へ遷移（Step 4.3で実装予定）
+				console.log("[Main] Settings button clicked - transition to settings");
+				gameStateManager.setState("settings");
+			},
+		});
+
+		// 初期状態をtitleに設定
+		gameStateManager.setState("title");
+
+		console.log("Application initialized successfully");
+	} catch (error) {
+		console.error("Error:", error);
+		showError(`エラー: ${error}`);
+	}
+}
+
+/**
+ * 状態変化時の処理
+ */
+async function handleStateChange(newState: GameState) {
+	console.log(`[Main] Handling state change to: ${newState}`);
+
+	// 全画面を非表示
+	titleScreen.hide();
+	// TODO: Step 4.2-4.4で他の画面も非表示にする
+
+	switch (newState) {
+		case "title":
+			titleScreen.show();
+			// ゲームを停止
+			stopGame();
+			break;
+
+		case "setup":
+			// TODO: Step 4.2で実装
+			console.log("[Main] Setup state - TODO: implement in Step 4.2");
+			break;
+
+		case "settings":
+			// TODO: Step 4.3で実装
+			console.log("[Main] Settings state - TODO: implement in Step 4.3");
+			// 仮にタイトルに戻る
+			gameStateManager.setState("title");
+			break;
+
+		case "playing":
+			// ゲームを開始
+			await startGame();
+			break;
+
+		case "result":
+			// TODO: Step 4.4で実装
+			console.log("[Main] Result state - TODO: implement in Step 4.4");
+			break;
+	}
+}
+
+/**
+ * ゲームを開始
+ */
+async function startGame() {
+	console.log("[Main] Starting game...");
+
+	try {
 		// Phase 1: カメラとトラッキングのセットアップ
 		console.log("Step 1: Setting up camera...");
-		const cameraView = new CameraView();
+		cameraView = new CameraView();
 		await cameraView.init({
 			width: 1280,
 			height: 720,
@@ -48,9 +145,38 @@ async function main() {
 		debugCanvas.style.transform = "scaleX(-1)"; // 左右反転（カメラに合わせる）
 		container.appendChild(debugCanvas);
 
+		// Phase 2: Three.jsシーンとゲームのセットアップ
+		console.log("Step 2: Setting up 3D scene...");
+		scene = new Scene();
+		scene.init(container, {
+			backgroundColor: 0x000000,
+			cameraFov: 75,
+			cameraNear: 0.1,
+			cameraFar: 1000,
+		});
+
+		// Three.jsのcanvasを中層に配置
+		const threeCanvas = scene.getRenderer().domElement;
+		threeCanvas.style.position = "absolute";
+		threeCanvas.style.top = "0";
+		threeCanvas.style.left = "0";
+		threeCanvas.style.zIndex = "1"; // カメラ映像(-1)の上、デバッグcanvas(10)の下
+
+		console.log("Step 3: Initializing physics...");
+		physics = new Physics();
+		await physics.init({
+			gravity: { x: 0, y: -9.81, z: 0 },
+			timeStep: 1 / 60,
+		});
+
+		console.log("Step 4: Initializing game manager...");
+		gameManager = new GameManager();
+		gameManager.init(scene, physics, container);
+		gameManager.start();
+
 		// TrackingManager初期化
-		console.log("Step 2: Initializing tracking...");
-		const trackingManager = new TrackingManager();
+		console.log("Step 5: Initializing tracking...");
+		trackingManager = new TrackingManager();
 		await trackingManager.init(
 			{
 				hand: {
@@ -69,11 +195,12 @@ async function main() {
 			},
 			{
 				onHandResults: (hands) => {
+					if (!gameManager) return;
 					// 手の位置をGameManagerに通知
 					hands.forEach((hand) => {
 						// ランドマーク8（人差し指の先端）の座標を使用
 						const indexFingerTip = hand.landmarks[8];
-						if (indexFingerTip) {
+						if (indexFingerTip && gameManager) {
 							gameManager.updateHandPosition(
 								hand.handedness,
 								indexFingerTip.x,
@@ -83,26 +210,32 @@ async function main() {
 					});
 
 					// 検出されなかった手を非表示にする
-					const detectedHands = new Set(hands.map((h) => h.handedness));
-					if (!detectedHands.has("Left")) {
-						gameManager.hideHand("Left");
-					}
-					if (!detectedHands.has("Right")) {
-						gameManager.hideHand("Right");
+					if (gameManager) {
+						const detectedHands = new Set(hands.map((h) => h.handedness));
+						if (!detectedHands.has("Left")) {
+							gameManager.hideHand("Left");
+						}
+						if (!detectedHands.has("Right")) {
+							gameManager.hideHand("Right");
+						}
 					}
 				},
 				onFaceResults: () => {
 					// 顔のトラッキングは現在使用しない
 				},
 				onGestureResults: (gestures) => {
+					if (!gameManager) return;
 					// ジェスチャーに応じて手の状態を更新
 					gestures.forEach((gesture, handedness) => {
-						const isVictory = gesture.gesture === "Victory";
-						gameManager.updateHandGesture(handedness, isVictory);
+						if (gameManager) {
+							const isVictory = gesture.gesture === "Victory";
+							gameManager.updateHandGesture(handedness, isVictory);
+						}
 					});
 				},
-				onVCloseAction: (handedness) => {
+				onVCloseAction: (handedness: Handedness) => {
 					console.log(`[V-Close Action] Detected on ${handedness} hand!`);
+					if (!gameManager) return;
 					// ジェスチャーでロープを切断
 					gameManager.handleVCloseAction(handedness);
 				},
@@ -115,82 +248,27 @@ async function main() {
 		// デバッグ描画を有効化
 		trackingManager.enableDebug(debugCanvas);
 
-		// Phase 2: Three.jsシーンとゲームのセットアップ
-		console.log("Step 3: Setting up 3D scene...");
-		const scene = new Scene();
-		scene.init(container, {
-			backgroundColor: 0x000000,
-			cameraFov: 75,
-			cameraNear: 0.1,
-			cameraFar: 1000,
-		});
-
-		// Three.jsのcanvasを中層に配置
-		const threeCanvas = scene.getRenderer().domElement;
-		threeCanvas.style.position = "absolute";
-		threeCanvas.style.top = "0";
-		threeCanvas.style.left = "0";
-		threeCanvas.style.zIndex = "1"; // カメラ映像(-1)の上、デバッグcanvas(10)の下
-
-		console.log("Step 4: Initializing physics...");
-		const physics = new Physics();
-		await physics.init({
-			gravity: { x: 0, y: -9.81, z: 0 },
-			timeStep: 1 / 60,
-		});
-
-		console.log("Step 5: Initializing game manager...");
-		const gameManager = new GameManager();
-		gameManager.init(scene, physics, container);
-		gameManager.start();
-
-		// トラッキング開始（GameManager初期化後）
+		// トラッキング開始
 		console.log("Step 6: Starting tracking...");
 		await trackingManager.start(videoElement);
 		console.log("Tracking started successfully");
 
 		// テスト用にロープ付き宝物を3つ生成
-		setTimeout(() => gameManager.spawnRopeWithTreasure("left"), 500);
-		setTimeout(() => gameManager.spawnRopeWithTreasure("right"), 1000);
-		setTimeout(() => gameManager.spawnRopeWithTreasure("left"), 1500);
+		setTimeout(() => gameManager?.spawnRopeWithTreasure("left"), 500);
+		setTimeout(() => gameManager?.spawnRopeWithTreasure("right"), 1000);
+		setTimeout(() => gameManager?.spawnRopeWithTreasure("left"), 1500);
 
 		// クリックイベントリスナーを追加（デバッグ用）
-		window.addEventListener("click", (event) => {
-			gameManager.handleClick(event);
-		});
+		window.addEventListener("click", handleClick);
 
 		console.log("Game initialized successfully");
 
-		// レンダリングループを停止して、物理演算を含む新しいループを開始
-		scene.stop();
-
-		let lastTime = performance.now();
-		const animate = () => {
-			requestAnimationFrame(animate);
-
-			const currentTime = performance.now();
-			const deltaTime = (currentTime - lastTime) / 1000;
-			lastTime = currentTime;
-
-			// ゲーム更新
-			gameManager.update(deltaTime);
-
-			// 物理演算を実行
-			physics.step();
-
-			// メッシュの位置を物理ボディと同期
-			physics.syncMeshes();
-
-			// レンダリング
-			scene.getRenderer().render(scene.getScene(), scene.getCamera());
-		};
-
-		animate();
-
-		console.log("Scene started successfully");
+		// レンダリングループを開始
+		startRenderLoop();
 
 		// パフォーマンス統計を定期的に表示
 		setInterval(() => {
+			if (!scene || !trackingManager) return;
 			const sceneStats = scene.getStats();
 			const trackingStats = trackingManager.getPerformanceStats();
 			console.log(
@@ -201,21 +279,127 @@ async function main() {
 			);
 		}, 5000);
 	} catch (error) {
-		console.error("Error:", error);
-		// エラーメッセージを画面に表示
-		const errorDiv = document.createElement("div");
-		errorDiv.textContent = `エラー: ${error}`;
-		errorDiv.style.color = "red";
-		errorDiv.style.padding = "20px";
-		errorDiv.style.fontSize = "16px";
-		errorDiv.style.position = "absolute";
-		errorDiv.style.top = "50%";
-		errorDiv.style.left = "50%";
-		errorDiv.style.transform = "translate(-50%, -50%)";
-		errorDiv.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
-		errorDiv.style.borderRadius = "8px";
-		container?.appendChild(errorDiv);
+		console.error("Error starting game:", error);
+		showError(`ゲーム開始エラー: ${error}`);
+		gameStateManager.setState("title");
 	}
+}
+
+/**
+ * ゲームを停止
+ */
+function stopGame() {
+	console.log("[Main] Stopping game...");
+
+	// レンダリングループを停止
+	if (animationFrameId !== null) {
+		cancelAnimationFrame(animationFrameId);
+		animationFrameId = null;
+	}
+
+	// クリックイベントリスナーを削除
+	window.removeEventListener("click", handleClick);
+
+	// トラッキングを停止
+	if (trackingManager) {
+		trackingManager.stop();
+		trackingManager = null;
+	}
+
+	// カメラを停止
+	if (cameraView) {
+		cameraView.stop();
+		// video要素を削除
+		const videoElement = cameraView.getVideoElement();
+		if (videoElement.parentElement) {
+			videoElement.parentElement.removeChild(videoElement);
+		}
+		cameraView = null;
+	}
+
+	// シーンを停止
+	if (scene) {
+		scene.stop();
+		// canvasを削除
+		const canvas = scene.getRenderer().domElement;
+		if (canvas.parentElement) {
+			canvas.parentElement.removeChild(canvas);
+		}
+		scene = null;
+	}
+
+	// 物理エンジンをクリア
+	physics = null;
+
+	// ゲームマネージャーをクリア
+	gameManager = null;
+
+	// デバッグcanvasを削除
+	const debugCanvas = document.querySelector("canvas");
+	if (debugCanvas?.parentElement) {
+		debugCanvas.parentElement.removeChild(debugCanvas);
+	}
+
+	console.log("[Main] Game stopped");
+}
+
+/**
+ * レンダリングループを開始
+ */
+function startRenderLoop() {
+	let lastTime = performance.now();
+
+	const animate = () => {
+		animationFrameId = requestAnimationFrame(animate);
+
+		if (!scene || !physics || !gameManager) return;
+
+		const currentTime = performance.now();
+		const deltaTime = (currentTime - lastTime) / 1000;
+		lastTime = currentTime;
+
+		// ゲーム更新
+		gameManager.update(deltaTime);
+
+		// 物理演算を実行
+		physics.step();
+
+		// メッシュの位置を物理ボディと同期
+		physics.syncMeshes();
+
+		// レンダリング
+		scene.getRenderer().render(scene.getScene(), scene.getCamera());
+	};
+
+	animate();
+}
+
+/**
+ * クリックイベントハンドラ
+ */
+function handleClick(event: MouseEvent) {
+	if (gameManager) {
+		gameManager.handleClick(event);
+	}
+}
+
+/**
+ * エラーメッセージを表示
+ */
+function showError(message: string) {
+	const errorDiv = document.createElement("div");
+	errorDiv.textContent = message;
+	errorDiv.style.color = "red";
+	errorDiv.style.padding = "20px";
+	errorDiv.style.fontSize = "16px";
+	errorDiv.style.position = "absolute";
+	errorDiv.style.top = "50%";
+	errorDiv.style.left = "50%";
+	errorDiv.style.transform = "translate(-50%, -50%)";
+	errorDiv.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+	errorDiv.style.borderRadius = "8px";
+	errorDiv.style.zIndex = "1000";
+	container?.appendChild(errorDiv);
 }
 
 main();

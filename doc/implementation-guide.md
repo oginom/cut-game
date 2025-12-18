@@ -804,3 +804,102 @@ Phase 3では、Phase 1で実装したハンドトラッキング機能とPhase 
 ### 次のステップ
 
 Step 3.2で手の3Dモデル（カニの手）を実装し、トラッキングした手の位置に表示します。
+
+---
+
+## Phase 4: UI画面の実装
+
+Phase 4では、ゲームの全体的なフローを完成させるためのUI画面を実装します。タイトル画面、セットアップ画面、設定画面、リザルト画面を作成し、画面遷移を管理します。
+
+詳細な実装計画は[doc/04_ui_screens.md](04_ui_screens.md)を参照してください。
+
+## Step 4.1: GameStateManagerとタイトル画面の実装 - 完了事項
+
+### 完了した作業
+
+1. **型定義ファイルの作成**
+   - [src/types/ui.ts](src/types/ui.ts)を作成
+   - `GameState`: ゲームの状態（title, setup, settings, playing, result）
+   - `GameSettings`: ゲーム設定（カメラON/OFF、顔表示ON/OFF）
+   - `ResultData`: リザルトデータ（スコア、最大コンボ、宝物総数）
+   - `ScreenCallbacks`: 画面のコールバック定義
+
+2. **GameStateManagerの実装**
+   - [src/components/ui/GameStateManager.ts](src/components/ui/GameStateManager.ts)を作成
+   - 実装した機能:
+     - `init()`: 状態管理の初期化、コールバック設定
+     - `setState()`: 状態の変更、画面遷移のトリガー
+     - `getState()`: 現在の状態取得
+     - `getSettings()`: 設定の取得
+     - `updateSettings()`: 設定の更新と保存
+     - `setResultData()` / `getResultData()`: リザルトデータの管理
+     - `loadSettings()` / `saveSettings()`: localStorageとの連携
+   - デフォルト設定: カメラON、顔表示ON
+   - localStorageキー: "crab-game-settings"
+
+3. **TitleScreenの実装**
+   - [src/components/ui/TitleScreen.ts](src/components/ui/TitleScreen.ts)を作成
+   - 実装した機能:
+     - `init()`: タイトル画面の作成とコールバック設定
+     - `show()` / `hide()`: 画面の表示/非表示
+     - `dispose()`: クリーンアップ
+   - UI要素:
+     - ゲームタイトル「新春カニカニパニック!」
+     - カメラ許可に関する注意事項
+     - ゲームスタートボタン（playingへ遷移、Step 4.2でsetupへ変更予定）
+     - 設定ボタン（settingsへ遷移予定）
+
+4. **main.tsの全面リファクタリング**
+   - [src/main.ts](src/main.ts)を更新
+   - GameStateManagerとTitleScreenの導入:
+     - アプリ起動時にGameStateManagerとTitleScreenを初期化
+     - 初期状態をtitleに設定
+   - 状態管理の実装:
+     - `handleStateChange()`: 状態変化時の処理を一元管理
+     - `startGame()`: playing状態でゲームを開始
+     - `stopGame()`: title状態でゲームを停止・クリーンアップ
+   - レンダリングループの分離:
+     - `startRenderLoop()`: 独立した関数として実装
+     - `animationFrameId`で管理し、停止可能に
+   - メモリ管理の強化:
+     - ゲーム停止時にすべてのリソースを適切にクリーンアップ
+     - トラッキング、カメラ、シーン、物理エンジンの停止と削除
+     - DOM要素（video, canvas）の削除
+
+5. **CSSスタイルの追加**
+   - [src/style.css](src/style.css)を大幅に拡張
+   - 共通スタイル:
+     - `.screen`: 画面全体のコンテナ（グラデーション背景）
+     - `.btn`, `.btn-primary`, `.btn-secondary`: ボタンスタイル
+     - `.button-container`: ボタン配置用コンテナ
+   - タイトル画面専用スタイル:
+     - グラデーションテキストのタイトル
+     - 半透明背景の注意事項ボックス
+   - セットアップ、設定、リザルト画面のスタイル（Step 4.2-4.4で使用予定）
+   - レスポンシブ対応: スマートフォン向けの調整
+
+6. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
+### 実装のポイント
+
+- **状態駆動アーキテクチャ**: GameStateManagerが全体の状態を管理し、状態変化に応じて画面を切り替え
+- **コールバックパターン**: 各画面からGameStateManagerへのコールバックで状態遷移を要求
+- **メモリ管理**: ゲーム停止時にすべてのリソースを適切に解放し、メモリリークを防止
+- **設定の永続化**: localStorageでゲーム設定を保存し、次回起動時に復元
+- **段階的実装**: Step 4.2-4.4で追加する画面のスタイルも先行して実装
+
+### 技術的課題と解決方法
+
+**課題**: TypeScriptの型エラー（Handedness型のインポート）
+- `Handedness`型は`types/tracking.ts`ではなく`types/gesture.ts`に定義されている
+- インポート文を修正: `import type { Handedness } from "./types/gesture"`
+
+**課題**: null安全性の警告
+- コールバック内で`gameManager`がnullの可能性があるとの警告
+- 適切なnullチェックを追加してTypeScriptの厳格な型チェックに対応
+
+### 次のステップ
+
+Step 4.2でセットアップ画面を実装し、カメラとトラッキングの初期化を段階的に表示します。
