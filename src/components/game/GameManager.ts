@@ -34,6 +34,8 @@ export class GameManager {
 
 	// デバッグ用：当たり判定の可視化
 	private debugHitSphere: THREE.Mesh | null = null;
+	private readonly HIT_SPHERE_COLOR_NORMAL = 0x00ff00; // 緑（通常時）
+	private readonly HIT_SPHERE_COLOR_CUTTING = 0xff0000; // 赤（切る時）
 
 	// デフォルトのロープ設定
 	private readonly defaultRopeConfig: RopeConfig = {
@@ -71,13 +73,14 @@ export class GameManager {
 		// デバッグ用の当たり判定球を作成
 		const sphereGeometry = new THREE.SphereGeometry(0.5, 16, 16); // 当たり判定の半径と同じ
 		const sphereMaterial = new THREE.MeshBasicMaterial({
-			color: 0x00ff00,
+			color: this.HIT_SPHERE_COLOR_NORMAL,
 			transparent: true,
 			opacity: 0.3,
 			wireframe: true,
 		});
 		this.debugHitSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-		this.debugHitSphere.visible = false; // 初期状態は非表示
+		this.debugHitSphere.visible = true; // 常に表示
+		this.debugHitSphere.position.set(-100, -100, 0); // 初期位置は画面外
 		scene.addObject(this.debugHitSphere);
 
 		console.log("[GameManager] Initialized");
@@ -400,6 +403,15 @@ export class GameManager {
 		} else {
 			this.rightHandPosition = position;
 		}
+
+		// 当たり判定球を手の位置に移動（右手優先）
+		if (this.debugHitSphere) {
+			// 右手が検出されている場合は右手の位置、そうでなければ左手の位置
+			const targetPosition = this.rightHandPosition || this.leftHandPosition;
+			if (targetPosition) {
+				this.debugHitSphere.position.copy(targetPosition);
+			}
+		}
 	}
 
 	/**
@@ -427,6 +439,17 @@ export class GameManager {
 		} else {
 			this.rightHandPosition = null;
 		}
+
+		// 当たり判定球の位置を更新（残っている手の位置に移動、なければ画面外）
+		if (this.debugHitSphere) {
+			const remainingPosition = this.rightHandPosition || this.leftHandPosition;
+			if (remainingPosition) {
+				this.debugHitSphere.position.copy(remainingPosition);
+			} else {
+				// 両手とも非表示の場合は画面外に移動
+				this.debugHitSphere.position.set(-100, -100, 0);
+			}
+		}
 	}
 
 	/**
@@ -443,17 +466,18 @@ export class GameManager {
 
 		console.log(`[GameManager] V-close action at position:`, position);
 
-		// デバッグ用：当たり判定球を表示
+		// デバッグ用：当たり判定球の色を切る時の色に変更
 		if (this.debugHitSphere) {
-			this.debugHitSphere.position.copy(position);
-			this.debugHitSphere.visible = true;
+			const material = this.debugHitSphere.material as THREE.MeshBasicMaterial;
+			material.color.setHex(this.HIT_SPHERE_COLOR_CUTTING);
 
-			// 1秒後に非表示にする
+			// 500ms後に通常色に戻す
 			setTimeout(() => {
 				if (this.debugHitSphere) {
-					this.debugHitSphere.visible = false;
+					const mat = this.debugHitSphere.material as THREE.MeshBasicMaterial;
+					mat.color.setHex(this.HIT_SPHERE_COLOR_NORMAL);
 				}
-			}, 1000);
+			}, 500);
 		}
 
 		// ロープを切断（クリックより少し大きめの判定範囲）
