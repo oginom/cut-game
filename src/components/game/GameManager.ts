@@ -26,6 +26,9 @@ export class GameManager {
   private leftHandPosition: THREE.Vector3 | null = null;
   private rightHandPosition: THREE.Vector3 | null = null;
 
+  // デバッグ用：当たり判定の可視化
+  private debugHitSphere: THREE.Mesh | null = null;
+
   // デフォルトのロープ設定
   private readonly defaultRopeConfig: RopeConfig = {
     segmentCount: 5,
@@ -58,6 +61,18 @@ export class GameManager {
     // 初期位置（画面外）
     this.leftHand.setPosition(-100, -100, 0);
     this.rightHand.setPosition(-100, -100, 0);
+
+    // デバッグ用の当たり判定球を作成
+    const sphereGeometry = new THREE.SphereGeometry(0.5, 16, 16); // 当たり判定の半径と同じ
+    const sphereMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00ff00,
+      transparent: true,
+      opacity: 0.3,
+      wireframe: true,
+    });
+    this.debugHitSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    this.debugHitSphere.visible = false; // 初期状態は非表示
+    scene.addObject(this.debugHitSphere);
 
     console.log('[GameManager] Initialized');
   }
@@ -217,46 +232,31 @@ export class GameManager {
   }
 
   /**
-   * スクリーン座標から3D空間座標への変換
+   * クリック位置でロープを切断（Raycast使用）
    */
-  private screenToWorld(screenX: number, screenY: number): THREE.Vector3 {
-    if (!this.scene) {
-      throw new Error('[GameManager] Scene not initialized');
+  public cutRopeAtPoint(point: THREE.Vector3): CutResult | null {
+    if (!this.physics || !this.scene) {
+      throw new Error('[GameManager] Not initialized');
     }
 
     const camera = this.scene.getCamera();
+
+    // 3D座標からスクリーン座標に変換してRaycasterを作成
+    const screenPos = this.worldToScreen(point);
     const renderer = this.scene.getRenderer();
 
-    // 正規化デバイス座標に変換 (-1 から +1)
+    // 正規化デバイス座標に変換
     const mouse = new THREE.Vector2();
-    mouse.x = (screenX / renderer.domElement.clientWidth) * 2 - 1;
-    mouse.y = -(screenY / renderer.domElement.clientHeight) * 2 + 1;
+    mouse.x = (screenPos.x / renderer.domElement.clientWidth) * 2 - 1;
+    mouse.y = -(screenPos.y / renderer.domElement.clientHeight) * 2 + 1;
 
-    // Raycasterを使用して3D座標を取得
+    // Raycasterを作成
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
 
-    // カメラ位置から一定距離の点を取得（z=0の平面上）
-    const distance = 5; // カメラからの距離
-    const worldPoint = new THREE.Vector3();
-    raycaster.ray.at(distance, worldPoint);
-
-    return worldPoint;
-  }
-
-  /**
-   * クリック位置でロープを切断
-   */
-  public cutRopeAtPoint(point: THREE.Vector3): CutResult | null {
-    if (!this.physics) {
-      throw new Error('[GameManager] Physics not initialized');
-    }
-
-    const hitRadius = 0.5; // 当たり判定の半径
-
     // すべてのロープをチェック
     for (const [id, rope] of this.ropes.entries()) {
-      const segmentIndex = RopeFactory.checkHit(rope.segments, point, hitRadius);
+      const segmentIndex = RopeFactory.checkHitRaycast(rope.segments, raycaster);
 
       if (segmentIndex !== null) {
         // セグメントとの接続ジョイントを切断
@@ -292,20 +292,43 @@ export class GameManager {
    * クリックイベントの処理
    */
   public handleClick(event: MouseEvent): void {
-    const point = this.screenToWorld(event.clientX, event.clientY);
-    const result = this.cutRopeAtPoint(point);
+    if (!this.scene) return;
 
-    if (result) {
-      console.log(`[GameManager] Cut successful! Treasure: ${result.treasure.type}`);
+    const camera = this.scene.getCamera();
+    const renderer = this.scene.getRenderer();
 
-      // スコアを追加
-      const scoreEvent = this.scoreManager.addScore(result.treasure);
+    // 正規化デバイス座標に変換
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+    mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
 
-      // スコアアニメーションを表示
-      this.scoreDisplay.showScoreAnimation(
-        scoreEvent.points,
-        new THREE.Vector2(event.clientX, event.clientY)
-      );
+    // Raycasterを作成
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+
+    // すべてのロープをチェック
+    for (const [id, rope] of this.ropes.entries()) {
+      const segmentIndex = RopeFactory.checkHitRaycast(rope.segments, raycaster);
+
+      if (segmentIndex !== null && this.physics) {
+        const jointIndex = segmentIndex;
+        if (jointIndex >= 0 && jointIndex < rope.joints.length) {
+          RopeFactory.cutJoint(this.physics, rope.joints[jointIndex]);
+
+          console.log(`[GameManager] Cut rope ${id} at segment ${segmentIndex} (click)`);
+
+          // スコアを追加
+          const scoreEvent = this.scoreManager.addScore(rope.treasure.config);
+
+          // スコアアニメーションを表示
+          this.scoreDisplay.showScoreAnimation(
+            scoreEvent.points,
+            new THREE.Vector2(event.clientX, event.clientY)
+          );
+
+          return; // 最初にヒットしたロープのみ切断
+        }
+      }
     }
   }
 
@@ -373,6 +396,19 @@ export class GameManager {
 
     console.log(`[GameManager] V-close action at position:`, position);
 
+    // デバッグ用：当たり判定球を表示
+    if (this.debugHitSphere) {
+      this.debugHitSphere.position.copy(position);
+      this.debugHitSphere.visible = true;
+
+      // 1秒後に非表示にする
+      setTimeout(() => {
+        if (this.debugHitSphere) {
+          this.debugHitSphere.visible = false;
+        }
+      }, 1000);
+    }
+
     // ロープを切断（クリックより少し大きめの判定範囲）
     const result = this.cutRopeAtPoint(position);
 
@@ -388,6 +424,8 @@ export class GameManager {
         const screenPos = this.worldToScreen(position);
         this.scoreDisplay.showScoreAnimation(scoreEvent.points, screenPos);
       }
+    } else {
+      console.log(`[GameManager] Cut failed - no rope in range`);
     }
   }
 
@@ -428,6 +466,14 @@ export class GameManager {
     if (this.rightHand) {
       this.rightHand.dispose();
       this.rightHand = null;
+    }
+
+    // デバッグ用の当たり判定球を削除
+    if (this.debugHitSphere && this.scene) {
+      this.scene.removeObject(this.debugHitSphere);
+      this.debugHitSphere.geometry.dispose();
+      (this.debugHitSphere.material as THREE.Material).dispose();
+      this.debugHitSphere = null;
     }
 
     // スコア表示のクリーンアップ

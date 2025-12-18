@@ -143,23 +143,25 @@ export class RopeFactory {
   }
 
   /**
-   * ロープのセグメントとの当たり判定
+   * ロープのセグメントとの当たり判定（Raycast使用、奥行き無視）
+   * カメラから見た2D平面上で判定を行う
    * @returns ヒットしたセグメントのインデックス、ヒットしなければnull
    */
-  public static checkHit(
+  public static checkHitRaycast(
     segments: RopeSegment[],
-    point: THREE.Vector3,
-    radius: number
+    raycaster: THREE.Raycaster
   ): number | null {
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
-      const segmentPos = segment.mesh.position;
-      const distance = point.distanceTo(segmentPos);
+    // すべてのセグメントメッシュに対してRaycastを実行
+    const meshes = segments.map((seg) => seg.mesh);
+    const intersects = raycaster.intersectObjects(meshes, false);
 
-      if (distance < radius) {
-        return i;
-      }
+    if (intersects.length > 0) {
+      // 最初にヒットしたメッシュのインデックスを返す
+      const hitMesh = intersects[0].object;
+      const index = segments.findIndex((seg) => seg.mesh === hitMesh);
+      return index !== -1 ? index : null;
     }
+
     return null;
   }
 }
