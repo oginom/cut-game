@@ -146,12 +146,17 @@ export class GestureTracker {
 	 */
 	private trackGestures = (): void => {
 		if (!this.tracking || !this.videoElement || !this.gestureRecognizer) {
+			this.animationId = null;
 			return;
 		}
 
 		// ビデオが再生中でない場合はスキップ
 		if (this.videoElement.readyState < 2) {
-			this.animationId = requestAnimationFrame(this.trackGestures);
+			if (this.tracking) {
+				this.animationId = requestAnimationFrame(this.trackGestures);
+			} else {
+				this.animationId = null;
+			}
 			return;
 		}
 
@@ -165,11 +170,21 @@ export class GestureTracker {
 			// 結果を処理
 			this.onResults(results);
 		} catch (error) {
-			console.error("[GestureTracker] Error during tracking:", error);
+			// 検出エラー - ログ出力して続行
+			console.error("[GestureTracker] Detection error:", error);
+			if (this.callbacks?.onError) {
+				this.callbacks.onError(
+					error instanceof Error ? error : new Error(String(error)),
+				);
+			}
 		}
 
-		// 次のフレームをスケジュール
-		this.animationId = requestAnimationFrame(this.trackGestures);
+		// trackingフラグを再確認してから次のフレームをスケジュール
+		if (this.tracking) {
+			this.animationId = requestAnimationFrame(this.trackGestures);
+		} else {
+			this.animationId = null;
+		}
 	};
 
 	/**

@@ -114,7 +114,7 @@ export class TrackingManager {
 	 */
 	async start(videoElement: HTMLVideoElement): Promise<void> {
 		if (this.tracking) {
-			console.warn("Tracking is already running");
+			console.warn("[TrackingManager] Tracking is already running");
 			return;
 		}
 
@@ -124,35 +124,97 @@ export class TrackingManager {
 		// パフォーマンス測定ループを開始
 		this.startPerformanceMonitoring();
 
-		try {
-			// GestureTrackerのコールバック設定
-			const gestureCallbacks: GestureTrackerCallbacks = {
-				onGestureChange: () => {
-					// ジェスチャーデータを更新
-					const gestures = this.gestureTracker.getGestures();
-					this.lastGestureData = gestures;
-					this.callbacks?.onGestureResults?.(gestures);
-				},
-				onVCloseAction: (handedness) => {
-					console.log(`[TrackingManager] V-close action: ${handedness}`);
-					this.callbacks?.onVCloseAction?.(handedness);
-				},
-			};
+		// GestureTrackerのコールバック設定
+		const gestureCallbacks: GestureTrackerCallbacks = {
+			onGestureChange: () => {
+				// ジェスチャーデータを更新
+				const gestures = this.gestureTracker.getGestures();
+				this.lastGestureData = gestures;
+				this.callbacks?.onGestureResults?.(gestures);
+			},
+			onVCloseAction: (handedness) => {
+				console.log(`[TrackingManager] V-close action: ${handedness}`);
+				this.callbacks?.onVCloseAction?.(handedness);
+			},
+		};
 
-			// 全トラッカーを開始
-			await Promise.all([
+		try {
+			// 全トラッカーを開始（Promise.allSettledで部分的な失敗に対応）
+			const results = await Promise.allSettled([
 				this.handTracker.start(videoElement),
 				this.faceTracker.start(videoElement),
 				this.gestureTracker.start(videoElement, gestureCallbacks),
 			]);
 
-			console.log("[TrackingManager] All trackers started");
-		} catch (error) {
-			this.tracking = false;
-			this.callbacks?.onError?.(
-				error instanceof Error ? error : new Error(String(error)),
+			// 失敗したトラッカーをチェック
+			const failures: { name: string; reason: unknown }[] = [];
+			const trackerNames = ["HandTracker", "FaceTracker", "GestureTracker"];
+
+			results.forEach((result, index) => {
+				if (result.status === "rejected") {
+					failures.push({
+						name: trackerNames[index],
+						reason: result.reason,
+					});
+					console.error(
+						`[TrackingManager] ${trackerNames[index]} failed to start:`,
+						result.reason,
+					);
+				}
+			});
+
+			// すべてのトラッカーが失敗した場合はエラー
+			if (failures.length === results.length) {
+				// すべて失敗 - クリーンアップして例外をスロー
+				this.tracking = false;
+				this.handTracker.stop();
+				this.faceTracker.stop();
+				this.gestureTracker.stop();
+
+				const error = new Error(
+					`[TrackingManager] All trackers failed to start. Failures: ${failures.map((f) => f.name).join(", ")}`,
+				);
+				this.callbacks?.onError?.(error);
+				throw error;
+			}
+
+			// 一部が失敗した場合は警告を出すが続行
+			if (failures.length > 0) {
+				const failedNames = failures.map((f) => f.name).join(", ");
+				console.warn(
+					`[TrackingManager] Some trackers failed to start: ${failedNames}. Continuing with available trackers.`,
+				);
+
+				// 失敗したトラッカーは停止状態にする
+				failures.forEach((failure) => {
+					if (failure.name === "HandTracker") this.handTracker.stop();
+					if (failure.name === "FaceTracker") this.faceTracker.stop();
+					if (failure.name === "GestureTracker") this.gestureTracker.stop();
+				});
+
+				// エラーコールバックを呼び出すが、例外はスローしない
+				const partialError = new Error(
+					`[TrackingManager] Partial failure: ${failedNames} failed to start`,
+				);
+				this.callbacks?.onError?.(partialError);
+			}
+
+			// 成功したトラッカーの数を報告
+			const successCount = results.length - failures.length;
+			console.log(
+				`[TrackingManager] ${successCount}/${results.length} trackers started successfully`,
 			);
-			throw error;
+		} catch (error) {
+			// 予期しないエラー - 完全にクリーンアップ
+			this.tracking = false;
+			this.handTracker.stop();
+			this.faceTracker.stop();
+			this.gestureTracker.stop();
+
+			const wrappedError =
+				error instanceof Error ? error : new Error(String(error));
+			this.callbacks?.onError?.(wrappedError);
+			throw wrappedError;
 		}
 	}
 

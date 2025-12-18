@@ -60,4 +60,5 @@ export interface GestureTrackerCallbacks {
 	onGestureChange?: (event: GestureEvent) => void;
 	onVictoryDetected?: (handedness: Handedness) => void;
 	onVCloseAction?: (handedness: Handedness) => void;
+	onError?: (error: Error) => void;
 }

@@ -52,7 +52,7 @@ export class HandTracker {
 	 */
 	async start(videoElement: HTMLVideoElement): Promise<void> {
 		if (!this.handLandmarker) {
-			throw new Error("HandTracker not initialized. Call init() first.");
+			throw new Error("[HandTracker] Not initialized. Call init() first.");
 		}
 
 		this.videoElement = videoElement;
@@ -61,21 +61,38 @@ export class HandTracker {
 		// トラッキングループを開始
 		const detectHands = () => {
 			if (!this.tracking || !this.handLandmarker || !this.videoElement) {
+				this.animationFrameId = null;
 				return;
 			}
 
-			// ビデオが準備できているか確認
-			if (this.videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-				const startTimeMs = performance.now();
-				const results = this.handLandmarker.detectForVideo(
-					this.videoElement,
-					startTimeMs,
-				);
-				this.onResults(results);
+			try {
+				// ビデオが準備できているか確認
+				if (
+					this.videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+				) {
+					const startTimeMs = performance.now();
+					const results = this.handLandmarker.detectForVideo(
+						this.videoElement,
+						startTimeMs,
+					);
+					this.onResults(results);
+				}
+			} catch (error) {
+				// 検出エラー - ログ出力して続行
+				console.error("[HandTracker] Detection error:", error);
+				if (this.callbacks?.onError) {
+					this.callbacks.onError(
+						error instanceof Error ? error : new Error(String(error)),
+					);
+				}
 			}
 
-			// 次のフレームをリクエスト
-			this.animationFrameId = requestAnimationFrame(detectHands);
+			// trackingフラグを再確認してから次のフレームをスケジュール
+			if (this.tracking) {
+				this.animationFrameId = requestAnimationFrame(detectHands);
+			} else {
+				this.animationFrameId = null;
+			}
 		};
 
 		detectHands();
