@@ -1,28 +1,28 @@
 {
-  "name": "cut-game",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "format": "biome format --write ."
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.3.10",
-    "typescript": "~5.9.3",
-    "vite": "npm:rolldown-vite@7.2.5"
-  },
-  "overrides": {
-    "vite": "npm:rolldown-vite@7.2.5"
-  },
-  "dependencies": {
-    "@dimforge/rapier3d-compat": "^0.19.3",
-    "@mediapipe/tasks-vision": "0.10.22-rc.20250304",
-    "@types/three": "^0.182.0",
-    "three": "^0.182.0"
-  }
+	"name": "cut-game",
+	"private": true,
+	"version": "0.0.0",
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "tsc && vite build",
+		"preview": "vite preview",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write ."
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.10",
+		"typescript": "~5.9.3",
+		"vite": "npm:rolldown-vite@7.2.5"
+	},
+	"overrides": {
+		"vite": "npm:rolldown-vite@7.2.5"
+	},
+	"dependencies": {
+		"@dimforge/rapier3d-compat": "^0.19.3",
+		"@mediapipe/tasks-vision": "0.10.22-rc.20250304",
+		"@types/three": "^0.182.0",
+		"three": "^0.182.0"
+	}
 }

@@ -1,210 +1,211 @@
-import * as THREE from 'three';
-import type { SceneConfig, RenderStats } from '../../types/scene';
+import * as THREE from "three";
+import type { RenderStats, SceneConfig } from "../../types/scene";
 
 export class Scene {
-  private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
-  private renderer: THREE.WebGLRenderer;
-  private animationId: number | null = null;
-  private container: HTMLElement | null = null;
-  private config: SceneConfig;
+	private scene: THREE.Scene;
+	private camera: THREE.PerspectiveCamera;
+	private renderer: THREE.WebGLRenderer;
+	private animationId: number | null = null;
+	private container: HTMLElement | null = null;
+	private config: SceneConfig;
 
+	// パフォーマンス測定
+	private lastFrameTime: number = 0;
+	private frameCount: number = 0;
+	private fps: number = 0;
 
-  // パフォーマンス測定
-  private lastFrameTime: number = 0;
-  private frameCount: number = 0;
-  private fps: number = 0;
+	constructor() {
+		// デフォルト設定
+		this.config = {
+			backgroundColor: 0x000000,
+			cameraFov: 75,
+			cameraNear: 0.1,
+			cameraFar: 1000,
+		};
 
-  constructor() {
-    // デフォルト設定
-    this.config = {
-      backgroundColor: 0x000000,
-      cameraFov: 75,
-      cameraNear: 0.1,
-      cameraFar: 1000,
-    };
+		// シーンの作成
+		this.scene = new THREE.Scene();
+		// カメラ映像を背景として使用するため、背景色は設定しない
+		this.scene.background = null;
 
-    // シーンの作成
-    this.scene = new THREE.Scene();
-    // カメラ映像を背景として使用するため、背景色は設定しない
-    this.scene.background = null;
+		// カメラの作成
+		this.camera = new THREE.PerspectiveCamera(
+			this.config.cameraFov,
+			window.innerWidth / window.innerHeight,
+			this.config.cameraNear,
+			this.config.cameraFar,
+		);
+		this.camera.position.z = 5;
 
-    // カメラの作成
-    this.camera = new THREE.PerspectiveCamera(
-      this.config.cameraFov,
-      window.innerWidth / window.innerHeight,
-      this.config.cameraNear,
-      this.config.cameraFar
-    );
-    this.camera.position.z = 5;
+		// レンダラーの作成（透明背景を有効化）
+		this.renderer = new THREE.WebGLRenderer({
+			antialias: true,
+			alpha: true, // 透明背景を有効化
+		});
+		this.renderer.setSize(window.innerWidth, window.innerHeight);
+		this.renderer.setPixelRatio(window.devicePixelRatio);
+		this.renderer.setClearColor(0x000000, 0); // 完全に透明にする
 
-    // レンダラーの作成（透明背景を有効化）
-    this.renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true // 透明背景を有効化
-    });
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.setClearColor(0x000000, 0); // 完全に透明にする
+		// ライティングの設定
+		this.setupLights();
+	}
 
-    // ライティングの設定
-    this.setupLights();
-  }
+	/**
+	 * シーンの初期化
+	 */
+	public init(container: HTMLElement, config?: Partial<SceneConfig>): void {
+		this.container = container;
 
-  /**
-   * シーンの初期化
-   */
-  public init(container: HTMLElement, config?: Partial<SceneConfig>): void {
-    this.container = container;
+		// 設定のマージ
+		if (config) {
+			this.config = { ...this.config, ...config };
+			// カメラ映像を背景として使用するため、背景色は設定しない
+			// this.scene.background = new THREE.Color(this.config.backgroundColor);
+		}
 
-    // 設定のマージ
-    if (config) {
-      this.config = { ...this.config, ...config };
-      // カメラ映像を背景として使用するため、背景色は設定しない
-      // this.scene.background = new THREE.Color(this.config.backgroundColor);
-    }
+		// コンテナにレンダラーを追加
+		container.appendChild(this.renderer.domElement);
 
-    // コンテナにレンダラーを追加
-    container.appendChild(this.renderer.domElement);
+		// ウィンドウリサイズイベント
+		window.addEventListener("resize", this.handleResize);
 
-    // ウィンドウリサイズイベント
-    window.addEventListener('resize', this.handleResize);
+		console.log("[Scene] Initialized");
+	}
 
-    console.log('[Scene] Initialized');
-  }
+	/**
+	 * ライティングのセットアップ
+	 */
+	private setupLights(): void {
+		// 環境光
+		const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+		this.scene.add(ambientLight);
 
-  /**
-   * ライティングのセットアップ
-   */
-  private setupLights(): void {
-    // 環境光
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    this.scene.add(ambientLight);
+		// 平行光源
+		const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+		directionalLight.position.set(5, 10, 7.5);
+		directionalLight.castShadow = true;
+		this.scene.add(directionalLight);
+	}
 
-    // 平行光源
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(5, 10, 7.5);
-    directionalLight.castShadow = true;
-    this.scene.add(directionalLight);
-  }
+	/**
+	 * レンダリングループの開始
+	 */
+	public start(): void {
+		if (this.animationId !== null) {
+			console.warn("[Scene] Already running");
+			return;
+		}
 
+		this.lastFrameTime = performance.now();
+		this.animate();
+		console.log("[Scene] Started");
+	}
 
-  /**
-   * レンダリングループの開始
-   */
-  public start(): void {
-    if (this.animationId !== null) {
-      console.warn('[Scene] Already running');
-      return;
-    }
+	/**
+	 * レンダリングループの停止
+	 */
+	public stop(): void {
+		if (this.animationId !== null) {
+			cancelAnimationFrame(this.animationId);
+			this.animationId = null;
+			console.log("[Scene] Stopped");
+		}
+	}
 
-    this.lastFrameTime = performance.now();
-    this.animate();
-    console.log('[Scene] Started');
-  }
+	/**
+	 * アニメーションループ
+	 */
+	private animate = (): void => {
+		this.animationId = requestAnimationFrame(this.animate);
 
-  /**
-   * レンダリングループの停止
-   */
-  public stop(): void {
-    if (this.animationId !== null) {
-      cancelAnimationFrame(this.animationId);
-      this.animationId = null;
-      console.log('[Scene] Stopped');
-    }
-  }
+		const currentTime = performance.now();
+		const deltaTime = (currentTime - this.lastFrameTime) / 1000;
+		this.lastFrameTime = currentTime;
 
-  /**
-   * アニメーションループ
-   */
-  private animate = (): void => {
-    this.animationId = requestAnimationFrame(this.animate);
+		// FPS計測
+		this.frameCount++;
+		if (this.frameCount >= 60) {
+			this.fps = Math.round(1 / deltaTime);
+			this.frameCount = 0;
+		}
 
-    const currentTime = performance.now();
-    const deltaTime = (currentTime - this.lastFrameTime) / 1000;
-    this.lastFrameTime = currentTime;
+		this.renderer.render(this.scene, this.camera);
+	};
 
-    // FPS計測
-    this.frameCount++;
-    if (this.frameCount >= 60) {
-      this.fps = Math.round(1 / deltaTime);
-      this.frameCount = 0;
-    }
+	/**
+	 * ウィンドウリサイズ処理
+	 */
+	private handleResize = (): void => {
+		const width = window.innerWidth;
+		const height = window.innerHeight;
 
-    this.renderer.render(this.scene, this.camera);
-  };
+		this.camera.aspect = width / height;
+		this.camera.updateProjectionMatrix();
 
-  /**
-   * ウィンドウリサイズ処理
-   */
-  private handleResize = (): void => {
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+		this.renderer.setSize(width, height);
+	};
 
-    this.camera.aspect = width / height;
-    this.camera.updateProjectionMatrix();
+	/**
+	 * オブジェクトをシーンに追加
+	 */
+	public addObject(object: THREE.Object3D): void {
+		this.scene.add(object);
+	}
 
-    this.renderer.setSize(width, height);
-  };
+	/**
+	 * オブジェクトをシーンから削除
+	 */
+	public removeObject(object: THREE.Object3D): void {
+		this.scene.remove(object);
+	}
 
-  /**
-   * オブジェクトをシーンに追加
-   */
-  public addObject(object: THREE.Object3D): void {
-    this.scene.add(object);
-  }
+	/**
+	 * カメラを取得
+	 */
+	public getCamera(): THREE.PerspectiveCamera {
+		return this.camera;
+	}
 
-  /**
-   * オブジェクトをシーンから削除
-   */
-  public removeObject(object: THREE.Object3D): void {
-    this.scene.remove(object);
-  }
+	/**
+	 * シーンを取得
+	 */
+	public getScene(): THREE.Scene {
+		return this.scene;
+	}
 
-  /**
-   * カメラを取得
-   */
-  public getCamera(): THREE.PerspectiveCamera {
-    return this.camera;
-  }
+	/**
+	 * レンダラーを取得
+	 */
+	public getRenderer(): THREE.WebGLRenderer {
+		return this.renderer;
+	}
 
-  /**
-   * シーンを取得
-   */
-  public getScene(): THREE.Scene {
-    return this.scene;
-  }
+	/**
+	 * パフォーマンス統計を取得
+	 */
+	public getStats(): RenderStats {
+		return {
+			fps: this.fps,
+			drawCalls: this.renderer.info.render.calls,
+			triangles: this.renderer.info.render.triangles,
+		};
+	}
 
-  /**
-   * レンダラーを取得
-   */
-  public getRenderer(): THREE.WebGLRenderer {
-    return this.renderer;
-  }
+	/**
+	 * クリーンアップ
+	 */
+	public dispose(): void {
+		this.stop();
+		window.removeEventListener("resize", this.handleResize);
 
-  /**
-   * パフォーマンス統計を取得
-   */
-  public getStats(): RenderStats {
-    return {
-      fps: this.fps,
-      drawCalls: this.renderer.info.render.calls,
-      triangles: this.renderer.info.render.triangles,
-    };
-  }
+		if (
+			this.container &&
+			this.renderer.domElement.parentNode === this.container
+		) {
+			this.container.removeChild(this.renderer.domElement);
+		}
 
-  /**
-   * クリーンアップ
-   */
-  public dispose(): void {
-    this.stop();
-    window.removeEventListener('resize', this.handleResize);
-
-    if (this.container && this.renderer.domElement.parentNode === this.container) {
-      this.container.removeChild(this.renderer.domElement);
-    }
-
-    this.renderer.dispose();
-    console.log('[Scene] Disposed');
-  }
+		this.renderer.dispose();
+		console.log("[Scene] Disposed");
+	}
 }

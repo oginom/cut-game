@@ -1,484 +1,516 @@
-import * as THREE from 'three';
-import type { Scene } from '../renderer/Scene';
-import type { Physics } from './Physics';
-import { TreasureFactory } from './Treasure';
-import { RopeFactory } from './Rope';
-import type { RopeWithTreasure, RopeConfig, CutResult } from '../../types/game';
-import { ScoreManager } from './ScoreManager';
-import { ScoreDisplay } from '../ui/ScoreDisplay';
-import { CrabHand } from '../renderer/CrabHand';
-import { convertTo3D } from '../../utils/coordinates';
-import type { Handedness } from '../../types/gesture';
+import * as THREE from "three";
+import type { CutResult, RopeConfig, RopeWithTreasure } from "../../types/game";
+import type { Handedness } from "../../types/gesture";
+import { convertTo3D } from "../../utils/coordinates";
+import { CrabHand } from "../renderer/CrabHand";
+import type { Scene } from "../renderer/Scene";
+import { ScoreDisplay } from "../ui/ScoreDisplay";
+import type { Physics } from "./Physics";
+import { RopeFactory } from "./Rope";
+import { ScoreManager } from "./ScoreManager";
+import { TreasureFactory } from "./Treasure";
 
 export class GameManager {
-  private scene: Scene | null = null;
-  private physics: Physics | null = null;
-  private ropes: Map<string, RopeWithTreasure> = new Map();
-  private ropeIdCounter: number = 0;
-  private scoreManager: ScoreManager = new ScoreManager();
-  private scoreDisplay: ScoreDisplay = new ScoreDisplay();
-
-  // カニの手（左右）
-  private leftHand: CrabHand | null = null;
-  private rightHand: CrabHand | null = null;
-
-  // 手の現在位置（V閉じアクション時のロープ切断に使用）
-  private leftHandPosition: THREE.Vector3 | null = null;
-  private rightHandPosition: THREE.Vector3 | null = null;
-
-  // デバッグ用：当たり判定の可視化
-  private debugHitSphere: THREE.Mesh | null = null;
-
-  // デフォルトのロープ設定
-  private readonly defaultRopeConfig: RopeConfig = {
-    segmentCount: 5,
-    segmentLength: 0.3,
-    segmentRadius: 0.05,
-    mass: 0.5,
-  };
-
-  /**
-   * 初期化
-   */
-  public init(scene: Scene, physics: Physics, container: HTMLElement): void {
-    this.scene = scene;
-    this.physics = physics;
-
-    // スコアマネージャーの初期化
-    this.scoreManager.init();
-
-    // スコア表示の初期化
-    this.scoreDisplay.init(container);
-
-    // カニの手を初期化
-    this.leftHand = new CrabHand({ color: 0xff6347 }); // 赤色
-    this.rightHand = new CrabHand({ color: 0xff6347 }); // 赤色
-
-    // シーンに追加
-    scene.addObject(this.leftHand.getGroup());
-    scene.addObject(this.rightHand.getGroup());
-
-    // 初期位置（画面外）
-    this.leftHand.setPosition(-100, -100, 0);
-    this.rightHand.setPosition(-100, -100, 0);
-
-    // デバッグ用の当たり判定球を作成
-    const sphereGeometry = new THREE.SphereGeometry(0.5, 16, 16); // 当たり判定の半径と同じ
-    const sphereMaterial = new THREE.MeshBasicMaterial({
-      color: 0x00ff00,
-      transparent: true,
-      opacity: 0.3,
-      wireframe: true,
-    });
-    this.debugHitSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-    this.debugHitSphere.visible = false; // 初期状態は非表示
-    scene.addObject(this.debugHitSphere);
-
-    console.log('[GameManager] Initialized');
-  }
-
-  /**
-   * ゲーム開始
-   */
-  public start(): void {
-    console.log('[GameManager] Started');
-  }
-
-  /**
-   * ロープ付き宝物を生成
-   */
-  public spawnRopeWithTreasure(direction: 'left' | 'right'): string {
-    if (!this.scene || !this.physics) {
-      throw new Error('[GameManager] Not initialized');
-    }
-
-    const id = `rope_${this.ropeIdCounter++}`;
-
-    // 出現位置を決定
-    const startX = direction === 'left' ? -8 : 8;
-    const startY = 3;
-    const startZ = 0;
-    const startPos = new THREE.Vector3(startX, startY, startZ);
-
-    // ロープを作成
-    const { segments, anchorBody } = RopeFactory.create(
-      this.physics,
-      startPos,
-      this.defaultRopeConfig
-    );
-
-    // セグメントを接続
-    const joints = RopeFactory.connectSegments(
-      this.physics,
-      anchorBody,
-      segments,
-      this.defaultRopeConfig.segmentLength
-    );
-
-    // 宝物を作成（ランダムに種類を選択）
-    const treasureTypes: ('gold' | 'silver' | 'bronze')[] = ['gold', 'silver', 'bronze'];
-    const treasureType = treasureTypes[Math.floor(Math.random() * treasureTypes.length)];
-    const treasureConfig = TreasureFactory.getConfig(treasureType);
-
-    const treasureY = startY - this.defaultRopeConfig.segmentLength * segments.length - 0.5;
-    const treasure = TreasureFactory.create(
-      this.physics,
-      new THREE.Vector3(startX, treasureY, startZ),
-      treasureConfig
-    );
-
-    // 宝物をロープに接続
-    const treasureJoint = RopeFactory.attachTreasure(
-      this.physics,
-      segments[segments.length - 1],
-      treasure,
-      this.defaultRopeConfig.segmentLength
-    );
-    joints.push(treasureJoint);
-
-    // シーンに追加
-    segments.forEach((segment) => {
-      this.scene!.addObject(segment.mesh);
-    });
-    this.scene.addObject(treasure.mesh);
-
-    // ロープのデータを保存
-    const ropeWithTreasure: RopeWithTreasure = {
-      id,
-      segments,
-      treasure,
-      joints,
-      direction,
-      speed: 1.0, // 1秒あたり1単位移動
-      anchorBody,
-    };
-
-    this.ropes.set(id, ropeWithTreasure);
-
-    console.log(`[GameManager] Spawned rope with ${treasureType} treasure (${id})`);
-    console.log(`  ロープ位置: X=${startX}, Y=${startY}, Z=${startZ} (direction: ${direction})`);
-    console.log(`  ロープのX範囲: ${direction === 'left' ? `${startX} → 0 (中央へ移動)` : `${startX} → 0 (中央へ移動)`}`);
-
-    return id;
-  }
-
-  /**
-   * 更新処理
-   */
-  public update(deltaTime: number): void {
-    if (!this.physics) return;
-
-    const RAPIER = this.physics.getRAPIER();
-
-    // 各ロープを移動
-    this.ropes.forEach((rope) => {
-      const translation = rope.anchorBody.translation();
-      const moveDistance = rope.speed * deltaTime;
-      const newX = rope.direction === 'left' ? translation.x + moveDistance : translation.x - moveDistance;
-
-      // アンカーの位置を更新（Kinematicボディ）
-      rope.anchorBody.setNextKinematicTranslation(
-        new RAPIER.Vector3(newX, translation.y, translation.z)
-      );
-
-      // 画面外に出たら削除
-      if (Math.abs(newX) > 10) {
-        this.removeRope(rope.id);
-      }
-    });
-
-    // スコアマネージャーの更新（コンボタイムアウトチェック）
-    this.scoreManager.update();
-
-    // スコア表示の更新
-    this.scoreDisplay.update(this.scoreManager.getScore());
-  }
-
-  /**
-   * ロープを削除
-   */
-  private removeRope(id: string): void {
-    const rope = this.ropes.get(id);
-    if (!rope || !this.scene || !this.physics) return;
-
-    // ジョイントを削除
-    rope.joints.forEach((joint: any) => {
-      this.physics!.getWorld().removeImpulseJoint(joint, true);
-    });
-
-    // セグメントを削除
-    rope.segments.forEach((segment: any) => {
-      this.scene!.removeObject(segment.mesh);
-      this.physics!.getWorld().removeRigidBody(segment.body);
-    });
-
-    // 宝物を削除
-    this.scene.removeObject(rope.treasure.mesh);
-    this.physics.getWorld().removeRigidBody(rope.treasure.body);
-
-    // アンカーを削除
-    this.physics.getWorld().removeRigidBody(rope.anchorBody);
-
-    this.ropes.delete(id);
-
-    console.log(`[GameManager] Removed rope (${id})`);
-  }
-
-  /**
-   * アクティブなロープのリストを取得
-   */
-  public getRopes(): Map<string, RopeWithTreasure> {
-    return this.ropes;
-  }
-
-  /**
-   * クリック位置でロープを切断（Raycast使用）
-   */
-  public cutRopeAtPoint(point: THREE.Vector3): CutResult | null {
-    if (!this.physics || !this.scene) {
-      throw new Error('[GameManager] Not initialized');
-    }
-
-    const camera = this.scene.getCamera();
-
-    // 3D座標からスクリーン座標に変換してRaycasterを作成
-    const screenPos = this.worldToScreen(point);
-    const renderer = this.scene.getRenderer();
-
-    // 正規化デバイス座標に変換
-    const mouse = new THREE.Vector2();
-    mouse.x = (screenPos.x / renderer.domElement.clientWidth) * 2 - 1;
-    mouse.y = -(screenPos.y / renderer.domElement.clientHeight) * 2 + 1;
-
-    // Raycasterを作成
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse, camera);
-
-    // すべてのロープをチェック
-    for (const [id, rope] of this.ropes.entries()) {
-      const segmentIndex = RopeFactory.checkHitRaycast(rope.segments, raycaster);
-
-      if (segmentIndex !== null) {
-        // セグメントとの接続ジョイントを切断
-        // セグメントインデックスに対応するジョイントを切断
-        // ジョイント0: アンカーとセグメント0の接続
-        // ジョイント1: セグメント0とセグメント1の接続
-        // ...
-        // 最後のジョイント: 最後のセグメントと宝物の接続
-
-        const jointIndex = segmentIndex; // セグメントの上側のジョイントを切断
-        if (jointIndex >= 0 && jointIndex < rope.joints.length) {
-          RopeFactory.cutJoint(this.physics, rope.joints[jointIndex]);
-
-          console.log(`[GameManager] Cut rope ${id} at segment ${segmentIndex}`);
-
-          // 切断後、ロープは画面外に出るまで残るので、削除はしない
-          // 物理演算により自然に落下する
-
-          return {
-            success: true,
-            ropeId: id,
-            segmentIndex,
-            treasure: rope.treasure.config,
-          };
-        }
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * クリックイベントの処理
-   */
-  public handleClick(event: MouseEvent): void {
-    if (!this.scene) return;
-
-    const camera = this.scene.getCamera();
-    const renderer = this.scene.getRenderer();
-
-    // 正規化デバイス座標に変換
-    const mouse = new THREE.Vector2();
-    mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
-    mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
-
-    // Raycasterを作成
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse, camera);
-
-    // すべてのロープをチェック
-    for (const [id, rope] of this.ropes.entries()) {
-      const segmentIndex = RopeFactory.checkHitRaycast(rope.segments, raycaster);
-
-      if (segmentIndex !== null && this.physics) {
-        const jointIndex = segmentIndex;
-        if (jointIndex >= 0 && jointIndex < rope.joints.length) {
-          RopeFactory.cutJoint(this.physics, rope.joints[jointIndex]);
-
-          console.log(`[GameManager] Cut rope ${id} at segment ${segmentIndex} (click)`);
-
-          // スコアを追加
-          const scoreEvent = this.scoreManager.addScore(rope.treasure.config);
-
-          // スコアアニメーションを表示
-          this.scoreDisplay.showScoreAnimation(
-            scoreEvent.points,
-            new THREE.Vector2(event.clientX, event.clientY)
-          );
-
-          return; // 最初にヒットしたロープのみ切断
-        }
-      }
-    }
-  }
-
-  /**
-   * 手の位置を更新
-   */
-  public updateHandPosition(handedness: Handedness, x: number, y: number): void {
-    if (!this.scene) return;
-
-    const hand = handedness === 'Left' ? this.leftHand : this.rightHand;
-    if (!hand) return;
-
-    // 2D座標（0-1の範囲）を3D座標に変換
-    const camera = this.scene.getCamera();
-    const position = convertTo3D(x, y, camera, 5);
-
-    hand.setPosition(position.x, position.y, position.z);
-    hand.setVisible(true);
-
-    // 現在位置を保存（V閉じアクション用）
-    if (handedness === 'Left') {
-      this.leftHandPosition = position;
-    } else {
-      this.rightHandPosition = position;
-    }
-  }
-
-  /**
-   * 手のジェスチャー状態を更新
-   */
-  public updateHandGesture(handedness: Handedness, isVictory: boolean): void {
-    const hand = handedness === 'Left' ? this.leftHand : this.rightHand;
-    if (!hand) return;
-
-    hand.setState(isVictory ? 'open' : 'closed');
-  }
-
-  /**
-   * 手を非表示にする
-   */
-  public hideHand(handedness: Handedness): void {
-    const hand = handedness === 'Left' ? this.leftHand : this.rightHand;
-    if (!hand) return;
-
-    hand.setVisible(false);
-
-    // 位置情報もクリア
-    if (handedness === 'Left') {
-      this.leftHandPosition = null;
-    } else {
-      this.rightHandPosition = null;
-    }
-  }
-
-  /**
-   * V閉じアクションでロープを切断
-   */
-  public handleVCloseAction(handedness: Handedness): void {
-    const position = handedness === 'Left' ? this.leftHandPosition : this.rightHandPosition;
-
-    if (!position) {
-      console.warn(`[GameManager] No position data for ${handedness} hand`);
-      return;
-    }
-
-    console.log(`[GameManager] V-close action at position:`, position);
-
-    // デバッグ用：当たり判定球を表示
-    if (this.debugHitSphere) {
-      this.debugHitSphere.position.copy(position);
-      this.debugHitSphere.visible = true;
-
-      // 1秒後に非表示にする
-      setTimeout(() => {
-        if (this.debugHitSphere) {
-          this.debugHitSphere.visible = false;
-        }
-      }, 1000);
-    }
-
-    // ロープを切断（クリックより少し大きめの判定範囲）
-    const result = this.cutRopeAtPoint(position);
-
-    if (result) {
-      console.log(`[GameManager] Cut successful via gesture! Treasure: ${result.treasure.type}`);
-
-      // スコアを追加
-      const scoreEvent = this.scoreManager.addScore(result.treasure);
-
-      // スコアアニメーションを手の位置に表示
-      // 3D座標をスクリーン座標に変換
-      if (this.scene) {
-        const screenPos = this.worldToScreen(position);
-        this.scoreDisplay.showScoreAnimation(scoreEvent.points, screenPos);
-      }
-    } else {
-      console.log(`[GameManager] Cut failed - no rope in range`);
-    }
-  }
-
-  /**
-   * 3D空間座標からスクリーン座標への変換
-   */
-  private worldToScreen(worldPos: THREE.Vector3): THREE.Vector2 {
-    if (!this.scene) {
-      throw new Error('[GameManager] Scene not initialized');
-    }
-
-    const camera = this.scene.getCamera();
-    const renderer = this.scene.getRenderer();
-
-    // ワールド座標をスクリーン座標に変換
-    const vector = worldPos.clone();
-    vector.project(camera);
-
-    const screenX = (vector.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
-    const screenY = (-vector.y * 0.5 + 0.5) * renderer.domElement.clientHeight;
-
-    return new THREE.Vector2(screenX, screenY);
-  }
-
-  /**
-   * クリーンアップ
-   */
-  public dispose(): void {
-    // すべてのロープを削除
-    const ids = Array.from(this.ropes.keys());
-    ids.forEach((id) => this.removeRope(id));
-
-    // カニの手を削除
-    if (this.leftHand) {
-      this.leftHand.dispose();
-      this.leftHand = null;
-    }
-    if (this.rightHand) {
-      this.rightHand.dispose();
-      this.rightHand = null;
-    }
-
-    // デバッグ用の当たり判定球を削除
-    if (this.debugHitSphere && this.scene) {
-      this.scene.removeObject(this.debugHitSphere);
-      this.debugHitSphere.geometry.dispose();
-      (this.debugHitSphere.material as THREE.Material).dispose();
-      this.debugHitSphere = null;
-    }
-
-    // スコア表示のクリーンアップ
-    this.scoreDisplay.dispose();
-
-    console.log('[GameManager] Disposed');
-  }
+	private scene: Scene | null = null;
+	private physics: Physics | null = null;
+	private ropes: Map<string, RopeWithTreasure> = new Map();
+	private ropeIdCounter: number = 0;
+	private scoreManager: ScoreManager = new ScoreManager();
+	private scoreDisplay: ScoreDisplay = new ScoreDisplay();
+
+	// カニの手（左右）
+	private leftHand: CrabHand | null = null;
+	private rightHand: CrabHand | null = null;
+
+	// 手の現在位置（V閉じアクション時のロープ切断に使用）
+	private leftHandPosition: THREE.Vector3 | null = null;
+	private rightHandPosition: THREE.Vector3 | null = null;
+
+	// デバッグ用：当たり判定の可視化
+	private debugHitSphere: THREE.Mesh | null = null;
+
+	// デフォルトのロープ設定
+	private readonly defaultRopeConfig: RopeConfig = {
+		segmentCount: 5,
+		segmentLength: 0.3,
+		segmentRadius: 0.05,
+		mass: 0.5,
+	};
+
+	/**
+	 * 初期化
+	 */
+	public init(scene: Scene, physics: Physics, container: HTMLElement): void {
+		this.scene = scene;
+		this.physics = physics;
+
+		// スコアマネージャーの初期化
+		this.scoreManager.init();
+
+		// スコア表示の初期化
+		this.scoreDisplay.init(container);
+
+		// カニの手を初期化
+		this.leftHand = new CrabHand({ color: 0xff6347 }); // 赤色
+		this.rightHand = new CrabHand({ color: 0xff6347 }); // 赤色
+
+		// シーンに追加
+		scene.addObject(this.leftHand.getGroup());
+		scene.addObject(this.rightHand.getGroup());
+
+		// 初期位置（画面外）
+		this.leftHand.setPosition(-100, -100, 0);
+		this.rightHand.setPosition(-100, -100, 0);
+
+		// デバッグ用の当たり判定球を作成
+		const sphereGeometry = new THREE.SphereGeometry(0.5, 16, 16); // 当たり判定の半径と同じ
+		const sphereMaterial = new THREE.MeshBasicMaterial({
+			color: 0x00ff00,
+			transparent: true,
+			opacity: 0.3,
+			wireframe: true,
+		});
+		this.debugHitSphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+		this.debugHitSphere.visible = false; // 初期状態は非表示
+		scene.addObject(this.debugHitSphere);
+
+		console.log("[GameManager] Initialized");
+	}
+
+	/**
+	 * ゲーム開始
+	 */
+	public start(): void {
+		console.log("[GameManager] Started");
+	}
+
+	/**
+	 * ロープ付き宝物を生成
+	 */
+	public spawnRopeWithTreasure(direction: "left" | "right"): string {
+		if (!this.scene || !this.physics) {
+			throw new Error("[GameManager] Not initialized");
+		}
+
+		const id = `rope_${this.ropeIdCounter++}`;
+
+		// 出現位置を決定
+		const startX = direction === "left" ? -8 : 8;
+		const startY = 3;
+		const startZ = 0;
+		const startPos = new THREE.Vector3(startX, startY, startZ);
+
+		// ロープを作成
+		const { segments, anchorBody } = RopeFactory.create(
+			this.physics,
+			startPos,
+			this.defaultRopeConfig,
+		);
+
+		// セグメントを接続
+		const joints = RopeFactory.connectSegments(
+			this.physics,
+			anchorBody,
+			segments,
+			this.defaultRopeConfig.segmentLength,
+		);
+
+		// 宝物を作成（ランダムに種類を選択）
+		const treasureTypes: ("gold" | "silver" | "bronze")[] = [
+			"gold",
+			"silver",
+			"bronze",
+		];
+		const treasureType =
+			treasureTypes[Math.floor(Math.random() * treasureTypes.length)];
+		const treasureConfig = TreasureFactory.getConfig(treasureType);
+
+		const treasureY =
+			startY - this.defaultRopeConfig.segmentLength * segments.length - 0.5;
+		const treasure = TreasureFactory.create(
+			this.physics,
+			new THREE.Vector3(startX, treasureY, startZ),
+			treasureConfig,
+		);
+
+		// 宝物をロープに接続
+		const treasureJoint = RopeFactory.attachTreasure(
+			this.physics,
+			segments[segments.length - 1],
+			treasure,
+			this.defaultRopeConfig.segmentLength,
+		);
+		joints.push(treasureJoint);
+
+		// シーンに追加
+		segments.forEach((segment) => {
+			this.scene!.addObject(segment.mesh);
+		});
+		this.scene.addObject(treasure.mesh);
+
+		// ロープのデータを保存
+		const ropeWithTreasure: RopeWithTreasure = {
+			id,
+			segments,
+			treasure,
+			joints,
+			direction,
+			speed: 1.0, // 1秒あたり1単位移動
+			anchorBody,
+		};
+
+		this.ropes.set(id, ropeWithTreasure);
+
+		console.log(
+			`[GameManager] Spawned rope with ${treasureType} treasure (${id})`,
+		);
+		console.log(
+			`  ロープ位置: X=${startX}, Y=${startY}, Z=${startZ} (direction: ${direction})`,
+		);
+		console.log(
+			`  ロープのX範囲: ${direction === "left" ? `${startX} → 0 (中央へ移動)` : `${startX} → 0 (中央へ移動)`}`,
+		);
+
+		return id;
+	}
+
+	/**
+	 * 更新処理
+	 */
+	public update(deltaTime: number): void {
+		if (!this.physics) return;
+
+		const RAPIER = this.physics.getRAPIER();
+
+		// 各ロープを移動
+		this.ropes.forEach((rope) => {
+			const translation = rope.anchorBody.translation();
+			const moveDistance = rope.speed * deltaTime;
+			const newX =
+				rope.direction === "left"
+					? translation.x + moveDistance
+					: translation.x - moveDistance;
+
+			// アンカーの位置を更新（Kinematicボディ）
+			rope.anchorBody.setNextKinematicTranslation(
+				new RAPIER.Vector3(newX, translation.y, translation.z),
+			);
+
+			// 画面外に出たら削除
+			if (Math.abs(newX) > 10) {
+				this.removeRope(rope.id);
+			}
+		});
+
+		// スコアマネージャーの更新（コンボタイムアウトチェック）
+		this.scoreManager.update();
+
+		// スコア表示の更新
+		this.scoreDisplay.update(this.scoreManager.getScore());
+	}
+
+	/**
+	 * ロープを削除
+	 */
+	private removeRope(id: string): void {
+		const rope = this.ropes.get(id);
+		if (!rope || !this.scene || !this.physics) return;
+
+		// ジョイントを削除
+		rope.joints.forEach((joint: any) => {
+			this.physics!.getWorld().removeImpulseJoint(joint, true);
+		});
+
+		// セグメントを削除
+		rope.segments.forEach((segment: any) => {
+			this.scene!.removeObject(segment.mesh);
+			this.physics!.getWorld().removeRigidBody(segment.body);
+		});
+
+		// 宝物を削除
+		this.scene.removeObject(rope.treasure.mesh);
+		this.physics.getWorld().removeRigidBody(rope.treasure.body);
+
+		// アンカーを削除
+		this.physics.getWorld().removeRigidBody(rope.anchorBody);
+
+		this.ropes.delete(id);
+
+		console.log(`[GameManager] Removed rope (${id})`);
+	}
+
+	/**
+	 * アクティブなロープのリストを取得
+	 */
+	public getRopes(): Map<string, RopeWithTreasure> {
+		return this.ropes;
+	}
+
+	/**
+	 * クリック位置でロープを切断（Raycast使用）
+	 */
+	public cutRopeAtPoint(point: THREE.Vector3): CutResult | null {
+		if (!this.physics || !this.scene) {
+			throw new Error("[GameManager] Not initialized");
+		}
+
+		const camera = this.scene.getCamera();
+
+		// 3D座標からスクリーン座標に変換してRaycasterを作成
+		const screenPos = this.worldToScreen(point);
+		const renderer = this.scene.getRenderer();
+
+		// 正規化デバイス座標に変換
+		const mouse = new THREE.Vector2();
+		mouse.x = (screenPos.x / renderer.domElement.clientWidth) * 2 - 1;
+		mouse.y = -(screenPos.y / renderer.domElement.clientHeight) * 2 + 1;
+
+		// Raycasterを作成
+		const raycaster = new THREE.Raycaster();
+		raycaster.setFromCamera(mouse, camera);
+
+		// すべてのロープをチェック
+		for (const [id, rope] of this.ropes.entries()) {
+			const segmentIndex = RopeFactory.checkHitRaycast(
+				rope.segments,
+				raycaster,
+			);
+
+			if (segmentIndex !== null) {
+				// セグメントとの接続ジョイントを切断
+				// セグメントインデックスに対応するジョイントを切断
+				// ジョイント0: アンカーとセグメント0の接続
+				// ジョイント1: セグメント0とセグメント1の接続
+				// ...
+				// 最後のジョイント: 最後のセグメントと宝物の接続
+
+				const jointIndex = segmentIndex; // セグメントの上側のジョイントを切断
+				if (jointIndex >= 0 && jointIndex < rope.joints.length) {
+					RopeFactory.cutJoint(this.physics, rope.joints[jointIndex]);
+
+					console.log(
+						`[GameManager] Cut rope ${id} at segment ${segmentIndex}`,
+					);
+
+					// 切断後、ロープは画面外に出るまで残るので、削除はしない
+					// 物理演算により自然に落下する
+
+					return {
+						success: true,
+						ropeId: id,
+						segmentIndex,
+						treasure: rope.treasure.config,
+					};
+				}
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * クリックイベントの処理
+	 */
+	public handleClick(event: MouseEvent): void {
+		if (!this.scene) return;
+
+		const camera = this.scene.getCamera();
+		const renderer = this.scene.getRenderer();
+
+		// 正規化デバイス座標に変換
+		const mouse = new THREE.Vector2();
+		mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+		mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+
+		// Raycasterを作成
+		const raycaster = new THREE.Raycaster();
+		raycaster.setFromCamera(mouse, camera);
+
+		// すべてのロープをチェック
+		for (const [id, rope] of this.ropes.entries()) {
+			const segmentIndex = RopeFactory.checkHitRaycast(
+				rope.segments,
+				raycaster,
+			);
+
+			if (segmentIndex !== null && this.physics) {
+				const jointIndex = segmentIndex;
+				if (jointIndex >= 0 && jointIndex < rope.joints.length) {
+					RopeFactory.cutJoint(this.physics, rope.joints[jointIndex]);
+
+					console.log(
+						`[GameManager] Cut rope ${id} at segment ${segmentIndex} (click)`,
+					);
+
+					// スコアを追加
+					const scoreEvent = this.scoreManager.addScore(rope.treasure.config);
+
+					// スコアアニメーションを表示
+					this.scoreDisplay.showScoreAnimation(
+						scoreEvent.points,
+						new THREE.Vector2(event.clientX, event.clientY),
+					);
+
+					return; // 最初にヒットしたロープのみ切断
+				}
+			}
+		}
+	}
+
+	/**
+	 * 手の位置を更新
+	 */
+	public updateHandPosition(
+		handedness: Handedness,
+		x: number,
+		y: number,
+	): void {
+		if (!this.scene) return;
+
+		const hand = handedness === "Left" ? this.leftHand : this.rightHand;
+		if (!hand) return;
+
+		// 2D座標（0-1の範囲）を3D座標に変換
+		const camera = this.scene.getCamera();
+		const position = convertTo3D(x, y, camera, 5);
+
+		hand.setPosition(position.x, position.y, position.z);
+		hand.setVisible(true);
+
+		// 現在位置を保存（V閉じアクション用）
+		if (handedness === "Left") {
+			this.leftHandPosition = position;
+		} else {
+			this.rightHandPosition = position;
+		}
+	}
+
+	/**
+	 * 手のジェスチャー状態を更新
+	 */
+	public updateHandGesture(handedness: Handedness, isVictory: boolean): void {
+		const hand = handedness === "Left" ? this.leftHand : this.rightHand;
+		if (!hand) return;
+
+		hand.setState(isVictory ? "open" : "closed");
+	}
+
+	/**
+	 * 手を非表示にする
+	 */
+	public hideHand(handedness: Handedness): void {
+		const hand = handedness === "Left" ? this.leftHand : this.rightHand;
+		if (!hand) return;
+
+		hand.setVisible(false);
+
+		// 位置情報もクリア
+		if (handedness === "Left") {
+			this.leftHandPosition = null;
+		} else {
+			this.rightHandPosition = null;
+		}
+	}
+
+	/**
+	 * V閉じアクションでロープを切断
+	 */
+	public handleVCloseAction(handedness: Handedness): void {
+		const position =
+			handedness === "Left" ? this.leftHandPosition : this.rightHandPosition;
+
+		if (!position) {
+			console.warn(`[GameManager] No position data for ${handedness} hand`);
+			return;
+		}
+
+		console.log(`[GameManager] V-close action at position:`, position);
+
+		// デバッグ用：当たり判定球を表示
+		if (this.debugHitSphere) {
+			this.debugHitSphere.position.copy(position);
+			this.debugHitSphere.visible = true;
+
+			// 1秒後に非表示にする
+			setTimeout(() => {
+				if (this.debugHitSphere) {
+					this.debugHitSphere.visible = false;
+				}
+			}, 1000);
+		}
+
+		// ロープを切断（クリックより少し大きめの判定範囲）
+		const result = this.cutRopeAtPoint(position);
+
+		if (result) {
+			console.log(
+				`[GameManager] Cut successful via gesture! Treasure: ${result.treasure.type}`,
+			);
+
+			// スコアを追加
+			const scoreEvent = this.scoreManager.addScore(result.treasure);
+
+			// スコアアニメーションを手の位置に表示
+			// 3D座標をスクリーン座標に変換
+			if (this.scene) {
+				const screenPos = this.worldToScreen(position);
+				this.scoreDisplay.showScoreAnimation(scoreEvent.points, screenPos);
+			}
+		} else {
+			console.log(`[GameManager] Cut failed - no rope in range`);
+		}
+	}
+
+	/**
+	 * 3D空間座標からスクリーン座標への変換
+	 */
+	private worldToScreen(worldPos: THREE.Vector3): THREE.Vector2 {
+		if (!this.scene) {
+			throw new Error("[GameManager] Scene not initialized");
+		}
+
+		const camera = this.scene.getCamera();
+		const renderer = this.scene.getRenderer();
+
+		// ワールド座標をスクリーン座標に変換
+		const vector = worldPos.clone();
+		vector.project(camera);
+
+		const screenX = (vector.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
+		const screenY = (-vector.y * 0.5 + 0.5) * renderer.domElement.clientHeight;
+
+		return new THREE.Vector2(screenX, screenY);
+	}
+
+	/**
+	 * クリーンアップ
+	 */
+	public dispose(): void {
+		// すべてのロープを削除
+		const ids = Array.from(this.ropes.keys());
+		ids.forEach((id) => this.removeRope(id));
+
+		// カニの手を削除
+		if (this.leftHand) {
+			this.leftHand.dispose();
+			this.leftHand = null;
+		}
+		if (this.rightHand) {
+			this.rightHand.dispose();
+			this.rightHand = null;
+		}
+
+		// デバッグ用の当たり判定球を削除
+		if (this.debugHitSphere && this.scene) {
+			this.scene.removeObject(this.debugHitSphere);
+			this.debugHitSphere.geometry.dispose();
+			(this.debugHitSphere.material as THREE.Material).dispose();
+			this.debugHitSphere = null;
+		}
+
+		// スコア表示のクリーンアップ
+		this.scoreDisplay.dispose();
+
+		console.log("[GameManager] Disposed");
+	}
 }
