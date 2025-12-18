@@ -5,6 +5,7 @@ import { GameManager } from "./components/game/GameManager";
 import { Physics } from "./components/game/Physics";
 import { Scene } from "./components/renderer/Scene";
 import { GameStateManager } from "./components/ui/GameStateManager";
+import { SettingsScreen } from "./components/ui/SettingsScreen";
 import { SetupScreen } from "./components/ui/SetupScreen";
 import { TitleScreen } from "./components/ui/TitleScreen";
 import type { Handedness } from "./types/gesture";
@@ -15,6 +16,7 @@ let container: HTMLElement;
 let gameStateManager: GameStateManager;
 let titleScreen: TitleScreen;
 let setupScreen: SetupScreen;
+let settingsScreen: SettingsScreen;
 
 // ゲーム関連の変数（setupで初期化）
 let cameraView: CameraView | null = null;
@@ -63,6 +65,22 @@ async function main() {
 			},
 		});
 
+		// SettingsScreenを初期化
+		settingsScreen = new SettingsScreen();
+		settingsScreen.init(container, {
+			onSave: (settings) => {
+				// 設定を保存してタイトル画面に戻る
+				console.log("[Main] Settings saved:", settings);
+				gameStateManager.updateSettings(settings);
+				gameStateManager.setState("title");
+			},
+			onCancel: () => {
+				// タイトル画面に戻る
+				console.log("[Main] Settings cancelled - transition to title");
+				gameStateManager.setState("title");
+			},
+		});
+
 		// 初期状態をtitleに設定
 		gameStateManager.setState("title");
 
@@ -82,7 +100,8 @@ async function handleStateChange(newState: GameState) {
 	// 全画面を非表示
 	titleScreen.hide();
 	setupScreen.hide();
-	// TODO: Step 4.3-4.4で他の画面も非表示にする
+	settingsScreen.hide();
+	// TODO: Step 4.4で他の画面も非表示にする
 
 	switch (newState) {
 		case "title":
@@ -98,10 +117,10 @@ async function handleStateChange(newState: GameState) {
 			break;
 
 		case "settings":
-			// TODO: Step 4.3で実装
-			console.log("[Main] Settings state - TODO: implement in Step 4.3");
-			// 仮にタイトルに戻る
-			gameStateManager.setState("title");
+			settingsScreen.show();
+			// 現在の設定を画面に反映
+			const currentSettings = gameStateManager.getSettings();
+			settingsScreen.loadSettings(currentSettings);
 			break;
 
 		case "playing":
