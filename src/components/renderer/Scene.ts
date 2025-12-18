@@ -14,6 +14,9 @@ export class Scene {
 	private frameCount: number = 0;
 	private fps: number = 0;
 
+	// イベントリスナーの参照を保持（メモリリーク防止）
+	private boundHandleResize: () => void;
+
 	constructor() {
 		// デフォルト設定
 		this.config = {
@@ -48,6 +51,9 @@ export class Scene {
 
 		// ライティングの設定
 		this.setupLights();
+
+		// リサイズハンドラーのバインド（イベントリスナー削除のため）
+		this.boundHandleResize = this.handleResize.bind(this);
 	}
 
 	/**
@@ -66,8 +72,8 @@ export class Scene {
 		// コンテナにレンダラーを追加
 		container.appendChild(this.renderer.domElement);
 
-		// ウィンドウリサイズイベント
-		window.addEventListener("resize", this.handleResize);
+		// ウィンドウリサイズイベント（バインドされた参照を使用）
+		window.addEventListener("resize", this.boundHandleResize);
 
 		console.log("[Scene] Initialized");
 	}
@@ -135,7 +141,7 @@ export class Scene {
 	/**
 	 * ウィンドウリサイズ処理
 	 */
-	private handleResize = (): void => {
+	private handleResize(): void {
 		const width = window.innerWidth;
 		const height = window.innerHeight;
 
@@ -143,7 +149,7 @@ export class Scene {
 		this.camera.updateProjectionMatrix();
 
 		this.renderer.setSize(width, height);
-	};
+	}
 
 	/**
 	 * オブジェクトをシーンに追加
@@ -196,7 +202,8 @@ export class Scene {
 	 */
 	public dispose(): void {
 		this.stop();
-		window.removeEventListener("resize", this.handleResize);
+		// バインドされた参照を使用してイベントリスナーを削除
+		window.removeEventListener("resize", this.boundHandleResize);
 
 		if (
 			this.container &&
