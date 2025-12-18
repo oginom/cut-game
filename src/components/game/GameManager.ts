@@ -6,9 +6,15 @@ import { CrabHand } from "../renderer/CrabHand";
 import type { Scene } from "../renderer/Scene";
 import { ScoreDisplay } from "../ui/ScoreDisplay";
 import type { Physics } from "./Physics";
-import { RopeFactory } from "./Rope";
+import {
+	attachTreasureToRope,
+	checkRopeHitRaycast,
+	connectRopeSegments,
+	createRope,
+	cutRopeJoint,
+} from "./Rope";
 import { ScoreManager } from "./ScoreManager";
-import { TreasureFactory } from "./Treasure";
+import { createTreasure, getTreasureConfig } from "./Treasure";
 
 export class GameManager {
 	private scene: Scene | null = null;
@@ -101,14 +107,14 @@ export class GameManager {
 		const startPos = new THREE.Vector3(startX, startY, startZ);
 
 		// ロープを作成
-		const { segments, anchorBody } = RopeFactory.create(
+		const { segments, anchorBody } = createRope(
 			this.physics,
 			startPos,
 			this.defaultRopeConfig,
 		);
 
 		// セグメントを接続
-		const joints = RopeFactory.connectSegments(
+		const joints = connectRopeSegments(
 			this.physics,
 			anchorBody,
 			segments,
@@ -123,18 +129,18 @@ export class GameManager {
 		];
 		const treasureType =
 			treasureTypes[Math.floor(Math.random() * treasureTypes.length)];
-		const treasureConfig = TreasureFactory.getConfig(treasureType);
+		const treasureConfig = getTreasureConfig(treasureType);
 
 		const treasureY =
 			startY - this.defaultRopeConfig.segmentLength * segments.length - 0.5;
-		const treasure = TreasureFactory.create(
+		const treasure = createTreasure(
 			this.physics,
 			new THREE.Vector3(startX, treasureY, startZ),
 			treasureConfig,
 		);
 
 		// 宝物をロープに接続
-		const treasureJoint = RopeFactory.attachTreasure(
+		const treasureJoint = attachTreasureToRope(
 			this.physics,
 			segments[segments.length - 1],
 			treasure,
@@ -143,9 +149,9 @@ export class GameManager {
 		joints.push(treasureJoint);
 
 		// シーンに追加
-		segments.forEach((segment) => {
-			this.scene!.addObject(segment.mesh);
-		});
+		for (const segment of segments) {
+			this.scene.addObject(segment.mesh);
+		}
 		this.scene.addObject(treasure.mesh);
 
 		// ロープのデータを保存
@@ -217,15 +223,15 @@ export class GameManager {
 		if (!rope || !this.scene || !this.physics) return;
 
 		// ジョイントを削除
-		rope.joints.forEach((joint: any) => {
-			this.physics!.getWorld().removeImpulseJoint(joint, true);
-		});
+		for (const joint of rope.joints) {
+			this.physics.getWorld().removeImpulseJoint(joint, true);
+		}
 
 		// セグメントを削除
-		rope.segments.forEach((segment: any) => {
-			this.scene!.removeObject(segment.mesh);
-			this.physics!.getWorld().removeRigidBody(segment.body);
-		});
+		for (const segment of rope.segments) {
+			this.scene.removeObject(segment.mesh);
+			this.physics.getWorld().removeRigidBody(segment.body);
+		}
 
 		// 宝物を削除
 		this.scene.removeObject(rope.treasure.mesh);
@@ -271,10 +277,7 @@ export class GameManager {
 
 		// すべてのロープをチェック
 		for (const [id, rope] of this.ropes.entries()) {
-			const segmentIndex = RopeFactory.checkHitRaycast(
-				rope.segments,
-				raycaster,
-			);
+			const segmentIndex = checkRopeHitRaycast(rope.segments, raycaster);
 
 			if (segmentIndex !== null) {
 				// セグメントとの接続ジョイントを切断
@@ -286,7 +289,7 @@ export class GameManager {
 
 				const jointIndex = segmentIndex; // セグメントの上側のジョイントを切断
 				if (jointIndex >= 0 && jointIndex < rope.joints.length) {
-					RopeFactory.cutJoint(this.physics, rope.joints[jointIndex]);
+					cutRopeJoint(this.physics, rope.joints[jointIndex]);
 
 					console.log(
 						`[GameManager] Cut rope ${id} at segment ${segmentIndex}`,
@@ -328,15 +331,12 @@ export class GameManager {
 
 		// すべてのロープをチェック
 		for (const [id, rope] of this.ropes.entries()) {
-			const segmentIndex = RopeFactory.checkHitRaycast(
-				rope.segments,
-				raycaster,
-			);
+			const segmentIndex = checkRopeHitRaycast(rope.segments, raycaster);
 
 			if (segmentIndex !== null && this.physics) {
 				const jointIndex = segmentIndex;
 				if (jointIndex >= 0 && jointIndex < rope.joints.length) {
-					RopeFactory.cutJoint(this.physics, rope.joints[jointIndex]);
+					cutRopeJoint(this.physics, rope.joints[jointIndex]);
 
 					console.log(
 						`[GameManager] Cut rope ${id} at segment ${segmentIndex} (click)`,
@@ -488,7 +488,9 @@ export class GameManager {
 	public dispose(): void {
 		// すべてのロープを削除
 		const ids = Array.from(this.ropes.keys());
-		ids.forEach((id) => this.removeRope(id));
+		for (const id of ids) {
+			this.removeRope(id);
+		}
 
 		// カニの手を削除
 		if (this.leftHand) {

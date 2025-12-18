@@ -139,7 +139,7 @@ export class ScoreDisplay {
 		) {
 			this.container.removeChild(this.scoreElement.parentElement);
 		}
-		if (this.animationContainer && this.animationContainer.parentNode) {
+		if (this.animationContainer?.parentNode) {
 			this.animationContainer.parentNode.removeChild(this.animationContainer);
 		}
 		console.log("[ScoreDisplay] Disposed");

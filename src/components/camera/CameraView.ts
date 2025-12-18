@@ -72,7 +72,9 @@ export class CameraView {
 	 */
 	stop(): void {
 		if (this.stream) {
-			this.stream.getTracks().forEach((track) => track.stop());
+			for (const track of this.stream.getTracks()) {
+				track.stop();
+			}
 			this.stream = null;
 		}
 
