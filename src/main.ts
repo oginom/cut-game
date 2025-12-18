@@ -5,6 +5,7 @@ import { GameManager } from "./components/game/GameManager";
 import { Physics } from "./components/game/Physics";
 import { Scene } from "./components/renderer/Scene";
 import { GameStateManager } from "./components/ui/GameStateManager";
+import { SetupScreen } from "./components/ui/SetupScreen";
 import { TitleScreen } from "./components/ui/TitleScreen";
 import type { Handedness } from "./types/gesture";
 import type { GameState } from "./types/ui";
@@ -13,6 +14,7 @@ import type { GameState } from "./types/ui";
 let container: HTMLElement;
 let gameStateManager: GameStateManager;
 let titleScreen: TitleScreen;
+let setupScreen: SetupScreen;
 
 // ゲーム関連の変数（setupで初期化）
 let cameraView: CameraView | null = null;
@@ -40,15 +42,24 @@ async function main() {
 		titleScreen = new TitleScreen();
 		titleScreen.init(container, {
 			onStart: () => {
-				// セットアップ画面へ遷移（Step 4.2で実装予定）
+				// セットアップ画面へ遷移
 				console.log("[Main] Start button clicked - transition to setup");
-				// 仮にplayingへ遷移（Step 4.2で修正予定）
-				gameStateManager.setState("playing");
+				gameStateManager.setState("setup");
 			},
 			onSettings: () => {
 				// 設定画面へ遷移（Step 4.3で実装予定）
 				console.log("[Main] Settings button clicked - transition to settings");
 				gameStateManager.setState("settings");
+			},
+		});
+
+		// SetupScreenを初期化
+		setupScreen = new SetupScreen();
+		setupScreen.init(container, {
+			onBack: () => {
+				// タイトル画面に戻る
+				console.log("[Main] Back button clicked - transition to title");
+				gameStateManager.setState("title");
 			},
 		});
 
@@ -70,7 +81,8 @@ async function handleStateChange(newState: GameState) {
 
 	// 全画面を非表示
 	titleScreen.hide();
-	// TODO: Step 4.2-4.4で他の画面も非表示にする
+	setupScreen.hide();
+	// TODO: Step 4.3-4.4で他の画面も非表示にする
 
 	switch (newState) {
 		case "title":
@@ -80,8 +92,9 @@ async function handleStateChange(newState: GameState) {
 			break;
 
 		case "setup":
-			// TODO: Step 4.2で実装
-			console.log("[Main] Setup state - TODO: implement in Step 4.2");
+			setupScreen.show();
+			// セットアップ処理を実行
+			await runSetup();
 			break;
 
 		case "settings":
@@ -104,21 +117,101 @@ async function handleStateChange(newState: GameState) {
 }
 
 /**
- * ゲームを開始
+ * セットアップ処理（カメラとトラッキングの初期化）
  */
-async function startGame() {
-	console.log("[Main] Starting game...");
+async function runSetup() {
+	console.log("[Main] Running setup...");
 
 	try {
-		// Phase 1: カメラとトラッキングのセットアップ
-		console.log("Step 1: Setting up camera...");
+		// Step 1: カメラ初期化
+		setupScreen.setStatus("カメラを起動中...");
+		setupScreen.setProgress(0);
+
 		cameraView = new CameraView();
 		await cameraView.init({
 			width: 1280,
 			height: 720,
 			facingMode: "user",
 		});
+
+		setupScreen.setProgress(25);
+		setupScreen.setStatus("カメラへのアクセスを待っています...");
+
 		await cameraView.start();
+
+		setupScreen.setProgress(50);
+		console.log("[Main] Camera started successfully");
+
+		// Step 2: トラッキング初期化
+		setupScreen.setStatus("トラッキングを初期化中...");
+
+		trackingManager = new TrackingManager();
+		await trackingManager.init(
+			{
+				hand: {
+					maxNumHands: 2,
+					minDetectionConfidence: 0.7,
+					minTrackingConfidence: 0.5,
+				},
+				face: {
+					minDetectionConfidence: 0.7,
+				},
+				gesture: {
+					minDetectionConfidence: 0.7,
+					minTrackingConfidence: 0.5,
+					numHands: 2,
+				},
+			},
+			{
+				onHandResults: () => {},
+				onFaceResults: () => {},
+				onGestureResults: () => {},
+				onVCloseAction: () => {},
+				onError: (error) => {
+					console.error("[Tracking Error]", error);
+				},
+			},
+		);
+
+		setupScreen.setProgress(75);
+		console.log("[Main] Tracking initialized successfully");
+
+		// Step 3: 完了
+		setupScreen.setStatus("準備完了！");
+		setupScreen.setProgress(100);
+
+		// 1秒待ってからゲーム画面へ遷移
+		await new Promise((resolve) => setTimeout(resolve, 1000));
+		gameStateManager.setState("playing");
+	} catch (error) {
+		console.error("[Main] Setup error:", error);
+		setupScreen.showError(
+			error instanceof Error ? error.message : String(error),
+		);
+
+		// カメラやトラッキングをクリーンアップ
+		if (trackingManager) {
+			trackingManager.stop();
+			trackingManager = null;
+		}
+		if (cameraView) {
+			cameraView.stop();
+			cameraView = null;
+		}
+	}
+}
+
+/**
+ * ゲームを開始
+ */
+async function startGame() {
+	console.log("[Main] Starting game...");
+
+	try {
+		// カメラとトラッキングは既にrunSetupで初期化済み
+		if (!cameraView || !trackingManager) {
+			throw new Error("Camera and tracking must be initialized first");
+		}
 
 		// video要素をDOMに追加
 		const videoElement = cameraView.getVideoElement();
@@ -174,9 +267,8 @@ async function startGame() {
 		gameManager.init(scene, physics, container);
 		gameManager.start();
 
-		// TrackingManager初期化
-		console.log("Step 5: Initializing tracking...");
-		trackingManager = new TrackingManager();
+		// TrackingManagerのコールバックを再設定
+		console.log("Step 5: Setting up tracking callbacks...");
 		await trackingManager.init(
 			{
 				hand: {
