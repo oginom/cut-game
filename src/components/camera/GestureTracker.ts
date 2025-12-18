@@ -113,6 +113,28 @@ export class GestureTracker {
 	}
 
 	/**
+	 * リソースを解放する（メモリリーク防止）
+	 */
+	dispose(): void {
+		// トラッキングを停止
+		this.stop();
+
+		// MediaPipeモデルを解放
+		if (this.gestureRecognizer) {
+			this.gestureRecognizer.close();
+			this.gestureRecognizer = null;
+		}
+
+		// 参照をクリア
+		this.videoElement = null;
+		this.callbacks = {};
+		this.previousGestures.clear();
+		this.latestGestures.clear();
+
+		console.log("[GestureTracker] Disposed");
+	}
+
+	/**
 	 * 最新のジェスチャーデータを取得
 	 */
 	getGestures(): Map<Handedness, GestureData> {

@@ -100,6 +100,28 @@ export class HandTracker {
 	}
 
 	/**
+	 * リソースを解放する（メモリリーク防止）
+	 */
+	dispose(): void {
+		// トラッキングを停止
+		this.stop();
+
+		// MediaPipeモデルを解放
+		if (this.handLandmarker) {
+			this.handLandmarker.close();
+			this.handLandmarker = null;
+		}
+
+		// 参照をクリア
+		this.videoElement = null;
+		this.callbacks = null;
+		this.debugCanvas = null;
+		this.debugCtx = null;
+
+		console.log("[HandTracker] Disposed");
+	}
+
+	/**
 	 * デバッグ描画を有効化する
 	 */
 	enableDebugDraw(canvas: HTMLCanvasElement): void {

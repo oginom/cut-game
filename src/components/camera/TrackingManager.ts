@@ -174,6 +174,29 @@ export class TrackingManager {
 	}
 
 	/**
+	 * リソースを解放する（メモリリーク防止）
+	 */
+	dispose(): void {
+		// トラッキングを停止
+		this.stop();
+
+		// 各トラッカーのリソースを解放
+		this.handTracker.dispose();
+		this.faceTracker.dispose();
+		this.gestureTracker.dispose();
+
+		// データをクリア
+		this.lastHandData = [];
+		this.lastFaceData = [];
+		this.lastGestureData.clear();
+
+		// コールバックをクリア
+		this.callbacks = null;
+
+		console.log("[TrackingManager] Disposed");
+	}
+
+	/**
 	 * デバッグ描画を有効化する
 	 */
 	enableDebug(canvas: HTMLCanvasElement): void {
