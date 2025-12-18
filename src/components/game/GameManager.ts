@@ -257,6 +257,13 @@ export class GameManager {
 	}
 
 	/**
+	 * ScoreManagerを取得
+	 */
+	public getScoreManager(): ScoreManager {
+		return this.scoreManager;
+	}
+
+	/**
 	 * クリック位置でロープを切断（Raycast使用）
 	 */
 	public cutRopeAtPoint(point: THREE.Vector3): CutResult | null {

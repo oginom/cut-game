@@ -5,6 +5,7 @@ import { GameManager } from "./components/game/GameManager";
 import { Physics } from "./components/game/Physics";
 import { Scene } from "./components/renderer/Scene";
 import { GameStateManager } from "./components/ui/GameStateManager";
+import { ResultScreen } from "./components/ui/ResultScreen";
 import { SettingsScreen } from "./components/ui/SettingsScreen";
 import { SetupScreen } from "./components/ui/SetupScreen";
 import { TitleScreen } from "./components/ui/TitleScreen";
@@ -17,6 +18,7 @@ let gameStateManager: GameStateManager;
 let titleScreen: TitleScreen;
 let setupScreen: SetupScreen;
 let settingsScreen: SettingsScreen;
+let resultScreen: ResultScreen;
 
 // ゲーム関連の変数（setupで初期化）
 let cameraView: CameraView | null = null;
@@ -81,6 +83,21 @@ async function main() {
 			},
 		});
 
+		// ResultScreenを初期化
+		resultScreen = new ResultScreen();
+		resultScreen.init(container, {
+			onReplay: () => {
+				// セットアップ画面に戻ってリプレイ
+				console.log("[Main] Replay button clicked - transition to setup");
+				gameStateManager.setState("setup");
+			},
+			onTitle: () => {
+				// タイトル画面に戻る
+				console.log("[Main] Title button clicked - transition to title");
+				gameStateManager.setState("title");
+			},
+		});
+
 		// 初期状態をtitleに設定
 		gameStateManager.setState("title");
 
@@ -101,7 +118,7 @@ async function handleStateChange(newState: GameState) {
 	titleScreen.hide();
 	setupScreen.hide();
 	settingsScreen.hide();
-	// TODO: Step 4.4で他の画面も非表示にする
+	resultScreen.hide();
 
 	switch (newState) {
 		case "title":
@@ -129,8 +146,14 @@ async function handleStateChange(newState: GameState) {
 			break;
 
 		case "result":
-			// TODO: Step 4.4で実装
-			console.log("[Main] Result state - TODO: implement in Step 4.4");
+			resultScreen.show();
+			// スコアデータを取得して表示
+			const resultData = gameStateManager.getResultData();
+			if (resultData) {
+				resultScreen.setScore(resultData);
+			}
+			// ゲームを停止
+			stopGame();
 			break;
 	}
 }
@@ -372,7 +395,11 @@ async function startGame() {
 		// クリックイベントリスナーを追加（デバッグ用）
 		window.addEventListener("click", handleClick);
 
+		// テスト用: Escキーでゲーム終了（Phase 5でタイマー実装後は削除）
+		window.addEventListener("keydown", handleKeyDown);
+
 		console.log("Game initialized successfully");
+		console.log("[Test] Press ESC to end the game and see the result screen");
 
 		// レンダリングループを開始
 		startRenderLoop();
@@ -408,8 +435,9 @@ function stopGame() {
 		animationFrameId = null;
 	}
 
-	// クリックイベントリスナーを削除
+	// イベントリスナーを削除
 	window.removeEventListener("click", handleClick);
+	window.removeEventListener("keydown", handleKeyDown);
 
 	// トラッキングを停止
 	if (trackingManager) {
@@ -442,8 +470,11 @@ function stopGame() {
 	// 物理エンジンをクリア
 	physics = null;
 
-	// ゲームマネージャーをクリア
-	gameManager = null;
+	// ゲームマネージャーをクリーンアップ
+	if (gameManager) {
+		gameManager.dispose();
+		gameManager = null;
+	}
 
 	// デバッグcanvasを削除
 	const debugCanvas = document.querySelector("canvas");
@@ -492,6 +523,47 @@ function handleClick(event: MouseEvent) {
 	if (gameManager) {
 		gameManager.handleClick(event);
 	}
+}
+
+/**
+ * キーボードイベントハンドラ（テスト用）
+ */
+function handleKeyDown(event: KeyboardEvent) {
+	// Escキーでゲーム終了
+	if (event.key === "Escape" && gameStateManager.getState() === "playing") {
+		console.log("[Test] ESC pressed - ending game");
+		endGame();
+	}
+}
+
+/**
+ * ゲームを終了してリザルト画面へ遷移
+ */
+function endGame() {
+	console.log("[Main] Ending game...");
+
+	if (!gameManager) {
+		console.warn("[Main] Game manager is not initialized");
+		return;
+	}
+
+	// スコアデータを取得
+	const scoreData = gameManager.getScoreManager().getScore();
+
+	// リザルトデータを作成
+	const resultData = {
+		score: scoreData.current,
+		maxCombo: scoreData.maxCombo,
+		totalTreasures: scoreData.totalTreasures,
+	};
+
+	console.log("[Main] Game ended with result:", resultData);
+
+	// GameStateManagerにリザルトデータを設定
+	gameStateManager.setResultData(resultData);
+
+	// リザルト画面へ遷移
+	gameStateManager.setState("result");
 }
 
 /**
