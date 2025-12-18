@@ -163,6 +163,7 @@ export class GameManager {
 			direction,
 			speed: 1.0, // 1秒あたり1単位移動
 			anchorBody,
+			isCut: false, // 初期状態は未切断
 		};
 
 		this.ropes.set(id, ropeWithTreasure);
@@ -277,6 +278,11 @@ export class GameManager {
 
 		// すべてのロープをチェック
 		for (const [id, rope] of this.ropes.entries()) {
+			// 既に切断済みのロープはスキップ
+			if (rope.isCut) {
+				continue;
+			}
+
 			const segmentIndex = checkRopeHitRaycast(rope.segments, raycaster);
 
 			if (segmentIndex !== null) {
@@ -290,6 +296,9 @@ export class GameManager {
 				const jointIndex = segmentIndex; // セグメントの上側のジョイントを切断
 				if (jointIndex >= 0 && jointIndex < rope.joints.length) {
 					cutRopeJoint(this.physics, rope.joints[jointIndex]);
+
+					// ロープを切断済みとしてマーク
+					rope.isCut = true;
 
 					console.log(
 						`[GameManager] Cut rope ${id} at segment ${segmentIndex}`,
@@ -331,12 +340,20 @@ export class GameManager {
 
 		// すべてのロープをチェック
 		for (const [id, rope] of this.ropes.entries()) {
+			// 既に切断済みのロープはスキップ
+			if (rope.isCut) {
+				continue;
+			}
+
 			const segmentIndex = checkRopeHitRaycast(rope.segments, raycaster);
 
 			if (segmentIndex !== null && this.physics) {
 				const jointIndex = segmentIndex;
 				if (jointIndex >= 0 && jointIndex < rope.joints.length) {
 					cutRopeJoint(this.physics, rope.joints[jointIndex]);
+
+					// ロープを切断済みとしてマーク
+					rope.isCut = true;
 
 					console.log(
 						`[GameManager] Cut rope ${id} at segment ${segmentIndex} (click)`,

@@ -34,6 +34,7 @@ export interface RopeWithTreasure {
 	direction: "left" | "right";
 	speed: number;
 	anchorBody: RAPIER.RigidBody; // ロープの固定点
+	isCut: boolean; // 既に切断されたかどうか
 }
 
 export interface CutResult {
