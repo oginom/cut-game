@@ -1284,6 +1284,72 @@ Step 5.2で宝物の出現パターンを実装します。
 | 20秒 | 2.0秒 | 1.67 | 67% |
 | 30秒 | 1.5秒 | 2.0 | 100% |
 
+### 技術的課題と解決方法
+
+**課題**: Rapierの`setNextKinematicTranslation()`でエラー
+- エラーメッセージ: "recursive use of an object detected which would lead to unsafe aliasing in rust"
+- 原因1: `forEach()`中に`removeRope()`でMapを変更していた
+- 原因2: 削除されたロープに対しても`setNextKinematicTranslation()`を呼び出していた
+
+**解決**: 削除を遅延実行
+- 画面外に出たロープのIDを配列に収集
+- forEach完了後に削除を実行
+- 画面外のロープには`setNextKinematicTranslation()`を呼ばない（早期return）
+- 毎回新しい`RAPIER.Vector3`インスタンスを作成
+
+```typescript
+// 画面外に出たロープのIDを収集
+const ropesToRemove: string[] = [];
+
+this.ropes.forEach((rope) => {
+  // 画面外チェック
+  if (Math.abs(newX) > 10) {
+    ropesToRemove.push(rope.id);
+    return; // このロープは移動しない
+  }
+
+  // 新しいVector3インスタンスを作成
+  const newPosition = new RAPIER.Vector3(newX, translation.y, translation.z);
+  rope.anchorBody.setNextKinematicTranslation(newPosition);
+});
+
+// イテレーション完了後に削除
+for (const id of ropesToRemove) {
+  this.removeRope(id);
+}
+```
+
+**課題の続き**: Physics.rigidBodies Mapのクリーンアップ問題
+- 上記の修正後もエラーが継続
+- 原因: `removeRope()`が物理ワールドからRigidBodyを削除するが、`Physics.rigidBodies` Mapから登録を解除していなかった
+- `Physics.syncMeshes()`が削除済みのRigidBodyに対して`translation()`を呼び出し、Rapierが内部エラーを発生
+
+**最終的な解決**: `Physics.unregisterBodyByReference()`メソッドの追加
+- [src/components/game/Physics.ts:123-136](../src/components/game/Physics.ts#L123-L136)に新しいメソッドを追加:
+  ```typescript
+  public unregisterBodyByReference(body: RAPIER.RigidBody): void {
+    // RigidBodyの参照でMapを検索して削除
+    for (const [id, handle] of this.rigidBodies.entries()) {
+      if (handle.body === body) {
+        this.rigidBodies.delete(id);
+        console.log(`[Physics] Unregistered body with ID ${id}`);
+        return;
+      }
+    }
+    console.warn("[Physics] Body not found in registry");
+  }
+  ```
+- このメソッドは、保存されていないIDでも、RigidBodyの参照から登録を解除可能
+- GameManager.removeRope()で、各セグメント、宝物、アンカーに対して`unregisterBodyByReference()`を呼び出し
+- これにより、`Physics.rigidBodies` Mapが適切にクリーンアップされ、`syncMeshes()`が削除済みのBodyにアクセスしなくなった
+
+**重要な教訓**:
+- Rapier RigidBodyの削除は、以下の順序で行う必要がある:
+  1. Physics.rigidBodies Mapから登録解除（`unregisterBodyByReference()`）
+  2. 物理ワールドから削除（`world.removeRigidBody()`）
+- 物理ワールドから削除しただけでは、Mapに参照が残り、後続の同期処理でエラーが発生する
+- `registerBody()`で返されるIDを保存しない場合は、`unregisterBodyByReference()`を使用する
+
 ### 次のステップ
 
 Step 5.3で難易度調整とバランス調整を行います。

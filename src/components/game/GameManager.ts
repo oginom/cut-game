@@ -273,25 +273,68 @@ export class GameManager {
 		// SpawnManagerの更新（宝物の出現）
 		this.spawnManager.update(deltaTime, elapsedTime);
 
+		// 画面外に出たロープのIDを収集
+		const ropesToRemove: string[] = [];
+
 		// 各ロープを移動
 		this.ropes.forEach((rope) => {
-			const translation = rope.anchorBody.translation();
-			const moveDistance = rope.speed * deltaTime;
-			const newX =
-				rope.direction === "left"
-					? translation.x + moveDistance
-					: translation.x - moveDistance;
+			try {
+				// アンカーが物理ワールドに存在するか確認
+				if (!rope.anchorBody || !this.physics) {
+					console.warn(
+						`[GameManager] Rope ${rope.id} has invalid anchorBody or physics`,
+					);
+					ropesToRemove.push(rope.id);
+					return;
+				}
 
-			// アンカーの位置を更新（Kinematicボディ）
-			rope.anchorBody.setNextKinematicTranslation(
-				new RAPIER.Vector3(newX, translation.y, translation.z),
-			);
+				const translation = rope.anchorBody.translation();
+				const moveDistance = rope.speed * deltaTime;
+				const newX =
+					rope.direction === "left"
+						? translation.x + moveDistance
+						: translation.x - moveDistance;
 
-			// 画面外に出たら削除
-			if (Math.abs(newX) > 10) {
-				this.removeRope(rope.id);
+				// 画面外に出たかチェック
+				if (Math.abs(newX) > 10) {
+					console.log(
+						`[GameManager] Rope ${rope.id} is off-screen at x=${newX.toFixed(2)}`,
+					);
+					ropesToRemove.push(rope.id);
+					return; // このロープは移動しない
+				}
+
+				// アンカーの位置を更新（Kinematicボディ）
+				// 毎回新しいVector3インスタンスを作成
+				const newPosition = new RAPIER.Vector3(newX, translation.y, translation.z);
+
+				console.log(
+					`[GameManager] Moving rope ${rope.id}: x=${newX.toFixed(2)}, direction=${rope.direction}, speed=${rope.speed.toFixed(2)}`,
+				);
+
+				rope.anchorBody.setNextKinematicTranslation(newPosition);
+			} catch (error) {
+				console.error(
+					`[GameManager] Error updating rope ${rope.id}:`,
+					error,
+					{
+						hasAnchor: !!rope.anchorBody,
+						direction: rope.direction,
+						speed: rope.speed,
+						isCut: rope.isCut,
+					},
+				);
+				ropesToRemove.push(rope.id);
 			}
 		});
+
+		// 画面外に出たロープを削除（イテレーション後に実行）
+		console.log(
+			`[GameManager] Removing ${ropesToRemove.length} ropes: [${ropesToRemove.join(", ")}]`,
+		);
+		for (const id of ropesToRemove) {
+			this.removeRope(id);
+		}
 
 		// スコアマネージャーの更新（コンボタイムアウトチェック）
 		this.scoreManager.update();
@@ -305,29 +348,57 @@ export class GameManager {
 	 */
 	private removeRope(id: string): void {
 		const rope = this.ropes.get(id);
-		if (!rope || !this.scene || !this.physics) return;
-
-		// ジョイントを削除
-		for (const joint of rope.joints) {
-			this.physics.getWorld().removeImpulseJoint(joint, true);
+		if (!rope || !this.scene || !this.physics) {
+			console.warn(`[GameManager] Cannot remove rope ${id}: not found or missing dependencies`);
+			return;
 		}
 
-		// セグメントを削除
-		for (const segment of rope.segments) {
-			this.scene.removeObject(segment.mesh);
-			this.physics.getWorld().removeRigidBody(segment.body);
+		console.log(`[GameManager] Starting removal of rope ${id}`, {
+			segmentCount: rope.segments.length,
+			jointCount: rope.joints.length,
+			hasAnchor: !!rope.anchorBody,
+			hasTreasure: !!rope.treasure,
+		});
+
+		try {
+			// ジョイントを削除
+			console.log(`[GameManager] Removing ${rope.joints.length} joints...`);
+			for (let i = 0; i < rope.joints.length; i++) {
+				const joint = rope.joints[i];
+				this.physics.getWorld().removeImpulseJoint(joint, true);
+				console.log(`[GameManager] Removed joint ${i}`);
+			}
+
+			// セグメントを削除（Physicsから登録解除してから物理ワールドから削除）
+			console.log(`[GameManager] Removing ${rope.segments.length} segments...`);
+			for (let i = 0; i < rope.segments.length; i++) {
+				const segment = rope.segments[i];
+				this.scene.removeObject(segment.mesh);
+				this.physics.unregisterBodyByReference(segment.body); // Physicsから登録解除
+				this.physics.getWorld().removeRigidBody(segment.body);
+				console.log(`[GameManager] Removed segment ${i}`);
+			}
+
+			// 宝物を削除（Physicsから登録解除してから物理ワールドから削除）
+			console.log(`[GameManager] Removing treasure...`);
+			this.scene.removeObject(rope.treasure.mesh);
+			this.physics.unregisterBodyByReference(rope.treasure.body); // Physicsから登録解除
+			this.physics.getWorld().removeRigidBody(rope.treasure.body);
+
+			// アンカーを削除（Physicsから登録解除してから物理ワールドから削除）
+			console.log(`[GameManager] Removing anchor...`);
+			this.physics.unregisterBodyByReference(rope.anchorBody); // Physicsから登録解除
+			this.physics.getWorld().removeRigidBody(rope.anchorBody);
+
+			// Mapから削除
+			this.ropes.delete(id);
+
+			console.log(`[GameManager] Successfully removed rope (${id})`);
+		} catch (error) {
+			console.error(`[GameManager] Error removing rope ${id}:`, error);
+			// エラーが発生してもMapからは削除しておく
+			this.ropes.delete(id);
 		}
-
-		// 宝物を削除
-		this.scene.removeObject(rope.treasure.mesh);
-		this.physics.getWorld().removeRigidBody(rope.treasure.body);
-
-		// アンカーを削除
-		this.physics.getWorld().removeRigidBody(rope.anchorBody);
-
-		this.ropes.delete(id);
-
-		console.log(`[GameManager] Removed rope (${id})`);
 	}
 
 	/**

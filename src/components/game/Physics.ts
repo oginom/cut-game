@@ -121,6 +121,21 @@ export class Physics {
 	}
 
 	/**
+	 * RigidBodyの参照から登録を解除（IDを保存していない場合に使用）
+	 */
+	public unregisterBodyByReference(body: RAPIER.RigidBody): void {
+		// Find the ID by matching the body reference
+		for (const [id, handle] of this.rigidBodies.entries()) {
+			if (handle.body === body) {
+				this.rigidBodies.delete(id);
+				console.log(`[Physics] Unregistered body with ID ${id}`);
+				return;
+			}
+		}
+		console.warn("[Physics] Body not found in registry");
+	}
+
+	/**
 	 * ワールドを取得
 	 */
 	public getWorld(): RAPIER.World {
