@@ -43,3 +43,38 @@ export interface CutResult {
 	segmentIndex: number;
 	treasure: TreasureConfig;
 }
+
+/**
+ * Spawn configuration
+ */
+export interface SpawnConfig {
+	/**
+	 * Initial spawn interval in seconds
+	 */
+	initialInterval: number;
+
+	/**
+	 * Minimum spawn interval in seconds
+	 */
+	minInterval: number;
+
+	/**
+	 * Initial rope speed (units per second)
+	 */
+	minSpeed: number;
+
+	/**
+	 * Maximum rope speed (units per second)
+	 */
+	maxSpeed: number;
+}
+
+/**
+ * Difficulty configuration
+ */
+export interface DifficultyConfig {
+	/**
+	 * Total game duration in seconds
+	 */
+	totalDuration: number;
+}

@@ -1210,3 +1210,80 @@ Phase 5では、タイマーシステム、宝物の出現パターン、難易�
 ### 次のステップ
 
 Step 5.2で宝物の出現パターンを実装します。
+
+## Step 5.2: 宝物の出現パターンの実装 - 完了事項
+
+### 完了した作業
+
+1. **型定義の追加**
+   - [src/types/game.ts](../src/types/game.ts)に追加
+   - `SpawnConfig`: 出現設定（初期間隔、最小間隔、速度範囲）
+   - `DifficultyConfig`: 難易度設定（ゲーム総時間）
+
+2. **SpawnManagerコンポーネントの実装**
+   - [src/components/game/SpawnManager.ts](../src/components/game/SpawnManager.ts)を作成
+   - 実装したメソッド:
+     - `init()`: 出現設定の初期化とコールバック設定
+     - `start()`: 出現開始
+     - `stop()`: 出現停止
+     - `update(deltaTime, elapsedTime)`: 出現処理
+     - `getDifficultyMultiplier(elapsedTime)`: 経過時間に応じた難易度倍率（0-1）
+     - `getSpawnInterval(elapsedTime)`: 現在の出現間隔
+     - `getSpeed(elapsedTime)`: 現在の移動速度
+   - 出現パターン:
+     - 初期: 3秒ごとに出現、速度1.0
+     - 中盤（15秒）: 2.25秒ごとに出現、速度1.5
+     - 終盤（30秒）: 1.5秒ごとに出現、速度2.0
+     - 左右からランダムに出現
+     - 宝物の種類はランダム（GameManagerで選択）
+   - 難易度カーブ:
+     - 線形補間で滑らかに難易度上昇
+     - `difficulty = elapsedTime / totalDuration`
+     - `interval = initialInterval - (initialInterval - minInterval) * difficulty`
+     - `speed = minSpeed + (maxSpeed - minSpeed) * difficulty`
+
+3. **GameManagerへの統合**
+   - [src/components/game/GameManager.ts](../src/components/game/GameManager.ts)を更新
+   - `spawnManager`インスタンス追加
+   - `init()`でSpawnManagerを初期化:
+     - `initialInterval: 3.0` - 初期3秒ごと
+     - `minInterval: 1.5` - 最小1.5秒ごと
+     - `minSpeed: 1.0` - 初期速度
+     - `maxSpeed: 2.0` - 最大速度
+     - `totalDuration: 30` - 30秒でフル難易度
+     - onSpawnコールバック: ロープ生成と速度設定
+   - `start()`でSpawnManagerを開始
+   - `update()`でSpawnManagerを更新:
+     - 経過時間を`gameTimer.getElapsedTime()`から取得
+     - `spawnManager.update(deltaTime, elapsedTime)`を呼び出し
+   - `endGame()`でSpawnManagerを停止
+
+4. **main.tsの更新**
+   - [src/main.ts](../src/main.ts)を更新
+   - テスト用の手動生成コード（3つのsetTimeout）を削除
+   - SpawnManagerが自動的に宝物を生成
+
+5. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
+### 実装のポイント
+
+- **自動出現**: SpawnManagerが時間間隔に基づいて自動的に宝物を生成
+- **難易度上昇**: 経過時間に応じて出現間隔が短く、移動速度が速くなる
+- **線形補間**: 滑らかな難易度カーブでプレイヤーに違和感を与えない
+- **ランダム性**: 左右の方向がランダムで、予測不可能な展開
+- **速度制御**: 生成時に速度を設定し、時間経過で加速
+
+### 出現パターンの詳細
+
+| 経過時間 | 出現間隔 | 移動速度 | 難易度 |
+|---------|---------|---------|-------|
+| 0秒 | 3.0秒 | 1.0 | 0% |
+| 10秒 | 2.5秒 | 1.33 | 33% |
+| 20秒 | 2.0秒 | 1.67 | 67% |
+| 30秒 | 1.5秒 | 2.0 | 100% |
+
+### 次のステップ
+
+Step 5.3で難易度調整とバランス調整を行います。

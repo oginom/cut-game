@@ -16,6 +16,7 @@ import {
 } from "./Rope";
 import { GameTimer } from "./GameTimer";
 import { ScoreManager } from "./ScoreManager";
+import { SpawnManager } from "./SpawnManager";
 import { createTreasure, getTreasureConfig } from "./Treasure";
 
 export class GameManager {
@@ -27,6 +28,7 @@ export class GameManager {
 	private scoreDisplay: ScoreDisplay = new ScoreDisplay();
 	private gameTimer: GameTimer = new GameTimer();
 	private timerDisplay: TimerDisplay = new TimerDisplay();
+	private spawnManager: SpawnManager = new SpawnManager();
 	private onGameEnd: (() => void) | null = null;
 
 	// カニの手（左右）
@@ -85,6 +87,28 @@ export class GameManager {
 			},
 		);
 
+		// SpawnManagerの初期化
+		this.spawnManager.init(
+			{
+				initialInterval: 3.0, // 初期3秒ごと
+				minInterval: 1.5, // 最小1.5秒ごと
+				minSpeed: 1.0, // 初期速度
+				maxSpeed: 2.0, // 最大速度
+			},
+			{
+				totalDuration: 30, // 30秒でフル難易度
+			},
+			(direction, speed) => {
+				// 宝物を生成
+				const ropeId = this.spawnRopeWithTreasure(direction);
+				// 生成されたロープの速度を設定
+				const rope = this.ropes.get(ropeId);
+				if (rope) {
+					rope.speed = speed;
+				}
+			},
+		);
+
 		// カニの手を初期化
 		this.leftHand = new CrabHand({ color: 0xff6347 }); // 赤色
 		this.rightHand = new CrabHand({ color: 0xff6347 }); // 赤色
@@ -119,6 +143,10 @@ export class GameManager {
 	public start(): void {
 		// タイマーを開始
 		this.gameTimer.start();
+
+		// 宝物の出現を開始
+		this.spawnManager.start();
+
 		console.log("[GameManager] Started");
 	}
 
@@ -128,6 +156,9 @@ export class GameManager {
 	public endGame(): void {
 		// タイマーを停止
 		this.gameTimer.stop();
+
+		// 宝物の出現を停止
+		this.spawnManager.stop();
 
 		console.log("[GameManager] Game ended");
 
@@ -235,6 +266,12 @@ export class GameManager {
 		if (!this.physics) return;
 
 		const RAPIER = this.physics.getRAPIER();
+
+		// 経過時間を取得
+		const elapsedTime = this.gameTimer.getElapsedTime();
+
+		// SpawnManagerの更新（宝物の出現）
+		this.spawnManager.update(deltaTime, elapsedTime);
 
 		// 各ロープを移動
 		this.ropes.forEach((rope) => {

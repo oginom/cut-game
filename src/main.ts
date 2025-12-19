@@ -390,15 +390,10 @@ async function startGame() {
 		await trackingManager.start(videoElement);
 		console.log("Tracking started successfully");
 
-		// テスト用にロープ付き宝物を3つ生成
-		setTimeout(() => gameManager?.spawnRopeWithTreasure("left"), 500);
-		setTimeout(() => gameManager?.spawnRopeWithTreasure("right"), 1000);
-		setTimeout(() => gameManager?.spawnRopeWithTreasure("left"), 1500);
-
 		// クリックイベントリスナーを追加（デバッグ用）
 		window.addEventListener("click", handleClick);
 
-		// テスト用: Escキーでゲーム終了（Phase 5でタイマー実装後は削除）
+		// テスト用: Escキーでゲーム終了
 		window.addEventListener("keydown", handleKeyDown);
 
 		console.log("Game initialized successfully");
