@@ -277,6 +277,92 @@ video {
 	color: #fff;
 }
 
+/* ===== ゲーム中のUI ===== */
+
+/* スコア表示 */
+.score-display {
+	position: fixed;
+	top: 20px;
+	left: 20px;
+	z-index: 20;
+	background: rgba(0, 0, 0, 0.7);
+	padding: 15px 25px;
+	border-radius: 10px;
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+.score-label {
+	font-size: 16px;
+	color: #ccc;
+	margin-bottom: 5px;
+}
+
+.score-value {
+	font-size: 32px;
+	font-weight: bold;
+	color: #ffd93d;
+	text-shadow: 0 2px 4px rgba(255, 217, 61, 0.4);
+}
+
+.combo-display {
+	margin-top: 10px;
+	font-size: 18px;
+	font-weight: bold;
+	color: #ffeb3b;
+	text-shadow: 0 2px 4px rgba(255, 235, 59, 0.4);
+}
+
+/* タイマー表示 */
+.timer-display {
+	position: fixed;
+	top: 20px;
+	right: 20px;
+	z-index: 20;
+	background: rgba(0, 0, 0, 0.7);
+	padding: 15px 30px;
+	border-radius: 10px;
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+	font-size: 48px;
+	font-weight: bold;
+	color: #fff;
+	text-align: center;
+	min-width: 100px;
+	text-shadow: 0 2px 4px rgba(255, 255, 255, 0.3);
+}
+
+/* タイマー警告状態（10秒以下） */
+.timer-warning {
+	color: #ff5252;
+	text-shadow: 0 2px 4px rgba(255, 82, 82, 0.5);
+}
+
+/* タイマー危機状態（5秒以下、点滅） */
+.timer-critical {
+	animation: timer-blink 0.5s infinite;
+}
+
+@keyframes timer-blink {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.3;
+	}
+}
+
+/* スコアアニメーション */
+.score-animation {
+	position: fixed;
+	z-index: 30;
+	font-size: 32px;
+	font-weight: bold;
+	color: #ffd93d;
+	text-shadow: 0 2px 4px rgba(255, 217, 61, 0.6);
+	pointer-events: none;
+	transition: all 1s ease-out;
+}
+
 /* ===== レスポンシブ対応 ===== */
 
 @media (max-width: 600px) {

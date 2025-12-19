@@ -1120,14 +1120,93 @@ Step 4.4の完了により、Phase 4（UI画面の実装）が完全に終了し
 
 ### 次のステップ
 
-次のフェーズでは、ゲームの完成に向けて以下の実装を進めます：
+Phase 5でゲームロジックを完成させ、30秒間プレイできる状態にします。
 
-- **Phase 5**: 画面遷移とゲームループの完成
-  - セットアップ画面からプレイング画面への遷移完全実装
-  - ゲーム終了判定とリザルト画面への自動遷移
-  - エラーハンドリングと復旧処理
+---
 
-- **Phase 6**: ビジュアルと演出の実装
-  - カニの手3Dモデルの表示
-  - 設定の完全な適用（カメラON/OFF、顔表示ON/OFF）
-  - エフェクトやアニメーションの追加
+## Phase 5: ゲームロジックの完成
+
+Phase 5では、タイマーシステム、宝物の出現パターン、難易度調整を実装し、ゲームとして完成させます。
+
+詳細な実装計画は[doc/05_game_logic.md](05_game_logic.md)を参照してください。
+
+## Step 5.1: タイマーシステムの実装 - 完了事項
+
+### 完了した作業
+
+1. **型定義ファイルの作成**
+   - [src/types/timer.ts](../src/types/timer.ts)を作成
+   - `TimerConfig`: タイマー設定（制限時間）
+   - `TimerCallbacks`: コールバック定義（onTick, onTimeUp）
+
+2. **GameTimerコンポーネントの実装**
+   - [src/components/game/GameTimer.ts](../src/components/game/GameTimer.ts)を作成
+   - 実装した機能:
+     - `init()`: タイマー初期化とコールバック設定
+     - `start()`: タイマー開始
+     - `stop()`: タイマー停止
+     - `pause()` / `resume()`: 一時停止と再開
+     - `getRemainingTime()`: 残り時間取得（秒）
+     - `getElapsedTime()`: 経過時間取得（秒）
+     - `isRunning()`: 動作状態確認
+     - `updateLoop()`: requestAnimationFrameでの更新ループ
+   - 内部実装:
+     - `startTime`で開始時刻を記録
+     - 毎フレーム残り時間をチェックし、`onTick`コールバック呼び出し
+     - 時間切れ時に`onTimeUp`コールバックを実行し、タイマー停止
+
+3. **TimerDisplayコンポーネントの実装**
+   - [src/components/ui/TimerDisplay.ts](../src/components/ui/TimerDisplay.ts)を作成
+   - 実装した機能:
+     - `init()`: タイマー表示UI要素の作成
+     - `update()`: 表示更新（秒単位で切り上げ表示）
+     - `showWarning()` / `hideWarning()`: 警告状態表示（10秒以下で赤色）
+     - `showCritical()` / `hideCritical()`: 危機状態表示（5秒以下で点滅）
+     - `dispose()`: クリーンアップ
+   - UI要素: 画面右上に大きく表示
+
+4. **GameManagerへの統合**
+   - [src/components/game/GameManager.ts](../src/components/game/GameManager.ts)を更新
+   - `gameTimer`と`timerDisplay`のインスタンス追加
+   - `init()`メソッドにタイマー初期化を追加:
+     - 30秒のカウントダウン設定
+     - `onTick`コールバックでタイマー表示を更新
+     - `onTimeUp`コールバックで`endGame()`を呼び出し
+     - `onGameEnd`コールバックを引数で受け取る
+   - `start()`メソッドでタイマー開始
+   - `endGame()`メソッドの追加:
+     - タイマー停止
+     - ゲーム終了コールバック呼び出し
+   - `dispose()`メソッドにタイマー表示のクリーンアップとタイマー停止を追加
+
+5. **main.tsの更新**
+   - [src/main.ts](../src/main.ts)を更新
+   - `gameManager.init()`にonGameEndコールバックを追加:
+     - タイマー終了時に`endGame()`を呼び出し
+   - `handleKeyDown()`を更新:
+     - ESCキーで`gameManager.endGame()`を呼び出し（タイマー経由の終了フローをテスト）
+
+6. **CSSスタイルの追加**
+   - [src/style.css](../src/style.css)を更新
+   - タイマー表示用スタイル:
+     - `.timer-display`: 右上固定配置、大きなフォント（48px）
+     - `.timer-warning`: 赤色スタイル（10秒以下）
+     - `.timer-critical`: 点滅アニメーション（5秒以下）
+     - `@keyframes timer-blink`: 0.5秒周期で点滅
+   - スコア表示とタイマー表示のz-indexを20に設定（デバッグcanvasより下、ゲーム画面より上）
+
+7. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+
+### 実装のポイント
+
+- **requestAnimationFrameループ**: タイマーの更新ループは独立したrequestAnimationFrameで実行
+- **毎フレーム更新**: onTickコールバックは毎フレーム呼ばれるため、滑らかなタイマー表示が可能
+- **時間切れ検出**: `hasTimeUpFired`フラグで一度だけonTimeUpを呼び出す
+- **階層的なコールバック**: GameTimer → GameManager.endGame() → main.endGame() → result画面遷移
+- **視覚的フィードバック**: 10秒以下で赤色、5秒以下で点滅により、残り時間をわかりやすく表示
+
+### 次のステップ
+
+Step 5.2で宝物の出現パターンを実装します。

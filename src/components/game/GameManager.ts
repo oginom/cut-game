@@ -5,6 +5,7 @@ import { convertTo3D } from "../../utils/coordinates";
 import { CrabHand } from "../renderer/CrabHand";
 import type { Scene } from "../renderer/Scene";
 import { ScoreDisplay } from "../ui/ScoreDisplay";
+import { TimerDisplay } from "../ui/TimerDisplay";
 import type { Physics } from "./Physics";
 import {
 	attachTreasureToRope,
@@ -13,6 +14,7 @@ import {
 	createRope,
 	cutRopeJoint,
 } from "./Rope";
+import { GameTimer } from "./GameTimer";
 import { ScoreManager } from "./ScoreManager";
 import { createTreasure, getTreasureConfig } from "./Treasure";
 
@@ -23,6 +25,9 @@ export class GameManager {
 	private ropeIdCounter: number = 0;
 	private scoreManager: ScoreManager = new ScoreManager();
 	private scoreDisplay: ScoreDisplay = new ScoreDisplay();
+	private gameTimer: GameTimer = new GameTimer();
+	private timerDisplay: TimerDisplay = new TimerDisplay();
+	private onGameEnd: (() => void) | null = null;
 
 	// カニの手（左右）
 	private leftHand: CrabHand | null = null;
@@ -48,15 +53,37 @@ export class GameManager {
 	/**
 	 * 初期化
 	 */
-	public init(scene: Scene, physics: Physics, container: HTMLElement): void {
+	public init(
+		scene: Scene,
+		physics: Physics,
+		container: HTMLElement,
+		onGameEnd?: () => void,
+	): void {
 		this.scene = scene;
 		this.physics = physics;
+		this.onGameEnd = onGameEnd || null;
 
 		// スコアマネージャーの初期化
 		this.scoreManager.init();
 
 		// スコア表示の初期化
 		this.scoreDisplay.init(container);
+
+		// タイマー表示の初期化
+		this.timerDisplay.init(container);
+
+		// タイマーの初期化（30秒）
+		this.gameTimer.init(
+			{ duration: 30 },
+			{
+				onTick: (remainingTime) => {
+					this.timerDisplay.update(remainingTime);
+				},
+				onTimeUp: () => {
+					this.endGame();
+				},
+			},
+		);
 
 		// カニの手を初期化
 		this.leftHand = new CrabHand({ color: 0xff6347 }); // 赤色
@@ -90,7 +117,24 @@ export class GameManager {
 	 * ゲーム開始
 	 */
 	public start(): void {
+		// タイマーを開始
+		this.gameTimer.start();
 		console.log("[GameManager] Started");
+	}
+
+	/**
+	 * ゲーム終了
+	 */
+	public endGame(): void {
+		// タイマーを停止
+		this.gameTimer.stop();
+
+		console.log("[GameManager] Game ended");
+
+		// ゲーム終了コールバックを呼び出し
+		if (this.onGameEnd) {
+			this.onGameEnd();
+		}
 	}
 
 	/**
@@ -560,6 +604,12 @@ export class GameManager {
 
 		// スコア表示のクリーンアップ
 		this.scoreDisplay.dispose();
+
+		// タイマー表示のクリーンアップ
+		this.timerDisplay.dispose();
+
+		// タイマーの停止
+		this.gameTimer.stop();
 
 		console.log("[GameManager] Disposed");
 	}

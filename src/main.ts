@@ -306,7 +306,10 @@ async function startGame() {
 
 		console.log("Step 4: Initializing game manager...");
 		gameManager = new GameManager();
-		gameManager.init(scene, physics, container);
+		gameManager.init(scene, physics, container, () => {
+			// タイマー終了時のコールバック
+			endGame();
+		});
 		gameManager.start();
 
 		// TrackingManagerのコールバックを再設定
@@ -529,10 +532,12 @@ function handleClick(event: MouseEvent) {
  * キーボードイベントハンドラ（テスト用）
  */
 function handleKeyDown(event: KeyboardEvent) {
-	// Escキーでゲーム終了
+	// Escキーでゲーム終了（タイマーによる終了をテスト）
 	if (event.key === "Escape" && gameStateManager.getState() === "playing") {
-		console.log("[Test] ESC pressed - ending game");
-		endGame();
+		console.log("[Test] ESC pressed - ending game via GameManager");
+		if (gameManager) {
+			gameManager.endGame();
+		}
 	}
 }
 
