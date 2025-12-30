@@ -1,5 +1,6 @@
 import type { TreasureConfig } from "../../types/game";
 import type { ScoreData, ScoreEvent } from "../../types/score";
+import { COMBO_CONFIG } from "../../config/gameConfig";
 
 export class ScoreManager {
 	private scoreData: ScoreData = {
@@ -11,7 +12,7 @@ export class ScoreManager {
 
 	private events: ScoreEvent[] = [];
 	private lastCutTime: number = 0;
-	private comboTimeout: number = 3000; // コンボの有効時間（ミリ秒）
+	private comboTimeout: number = COMBO_CONFIG.timeout * 1000; // コンボの有効時間（ミリ秒）
 
 	/**
 	 * 初期化
@@ -46,7 +47,8 @@ export class ScoreManager {
 
 		// スコア計算（コンボボーナス付き）
 		const baseScore = treasure.score;
-		const comboMultiplier = 1 + (this.scoreData.combo - 1) * 0.1; // コンボごとに10%増加
+		const comboMultiplier =
+			1 + (this.scoreData.combo - 1) * COMBO_CONFIG.bonusMultiplier;
 		const points = Math.floor(baseScore * comboMultiplier);
 
 		// スコアを加算

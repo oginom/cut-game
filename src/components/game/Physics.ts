@@ -1,6 +1,7 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import type { PhysicsConfig, RigidBodyHandle } from "../../types/physics";
+import { PHYSICS_CONFIG } from "../../config/gameConfig";
 
 export class Physics {
 	private RAPIER: typeof RAPIER | null = null;
@@ -12,8 +13,8 @@ export class Physics {
 	constructor() {
 		// デフォルト設定
 		this.config = {
-			gravity: { x: 0, y: -9.81, z: 0 },
-			timeStep: 1 / 60,
+			gravity: PHYSICS_CONFIG.gravity,
+			timeStep: PHYSICS_CONFIG.timeStep,
 		};
 	}
 

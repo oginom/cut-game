@@ -18,6 +18,13 @@ import { GameTimer } from "./GameTimer";
 import { ScoreManager } from "./ScoreManager";
 import { SpawnManager } from "./SpawnManager";
 import { createTreasure, getTreasureConfig } from "./Treasure";
+import {
+	TIMER_CONFIG,
+	SPAWN_CONFIG,
+	DIFFICULTY_CONFIG,
+	ROPE_CONFIG,
+	GAME_BOUNDS,
+} from "../../config/gameConfig";
 
 export class GameManager {
 	private scene: Scene | null = null;
@@ -46,10 +53,10 @@ export class GameManager {
 
 	// デフォルトのロープ設定
 	private readonly defaultRopeConfig: RopeConfig = {
-		segmentCount: 5,
-		segmentLength: 0.3,
-		segmentRadius: 0.05,
-		mass: 0.5,
+		segmentCount: ROPE_CONFIG.segmentCount,
+		segmentLength: ROPE_CONFIG.segmentLength,
+		segmentRadius: ROPE_CONFIG.segmentRadius,
+		mass: ROPE_CONFIG.segmentMass,
 	};
 
 	/**
@@ -74,9 +81,9 @@ export class GameManager {
 		// タイマー表示の初期化
 		this.timerDisplay.init(container);
 
-		// タイマーの初期化（30秒）
+		// タイマーの初期化
 		this.gameTimer.init(
-			{ duration: 30 },
+			{ duration: TIMER_CONFIG.timeLimit },
 			{
 				onTick: (remainingTime) => {
 					this.timerDisplay.update(remainingTime);
@@ -90,13 +97,13 @@ export class GameManager {
 		// SpawnManagerの初期化
 		this.spawnManager.init(
 			{
-				initialInterval: 3.0, // 初期3秒ごと
-				minInterval: 1.5, // 最小1.5秒ごと
-				minSpeed: 1.0, // 初期速度
-				maxSpeed: 2.0, // 最大速度
+				initialInterval: SPAWN_CONFIG.initialInterval,
+				minInterval: SPAWN_CONFIG.minInterval,
+				minSpeed: SPAWN_CONFIG.minSpeed,
+				maxSpeed: SPAWN_CONFIG.maxSpeed,
 			},
 			{
-				totalDuration: 30, // 30秒でフル難易度
+				totalDuration: DIFFICULTY_CONFIG.totalDuration,
 			},
 			(direction, speed) => {
 				// 宝物を生成
@@ -122,7 +129,11 @@ export class GameManager {
 		this.rightHand.setPosition(-100, -100, 0);
 
 		// デバッグ用の当たり判定球を作成
-		const sphereGeometry = new THREE.SphereGeometry(0.5, 16, 16); // 当たり判定の半径と同じ
+		const sphereGeometry = new THREE.SphereGeometry(
+			ROPE_CONFIG.hitRadius,
+			16,
+			16,
+		);
 		const sphereMaterial = new THREE.MeshBasicMaterial({
 			color: this.HIT_SPHERE_COLOR_NORMAL,
 			transparent: true,
@@ -249,12 +260,6 @@ export class GameManager {
 		console.log(
 			`[GameManager] Spawned rope with ${treasureType} treasure (${id})`,
 		);
-		console.log(
-			`  ロープ位置: X=${startX}, Y=${startY}, Z=${startZ} (direction: ${direction})`,
-		);
-		console.log(
-			`  ロープのX範囲: ${direction === "left" ? `${startX} → 0 (中央へ移動)` : `${startX} → 0 (中央へ移動)`}`,
-		);
 
 		return id;
 	}
@@ -296,10 +301,7 @@ export class GameManager {
 						: translation.x - moveDistance;
 
 				// 画面外に出たかチェック
-				if (Math.abs(newX) > 10) {
-					console.log(
-						`[GameManager] Rope ${rope.id} is off-screen at x=${newX.toFixed(2)}`,
-					);
+				if (Math.abs(newX) > GAME_BOUNDS.screenEdgeX) {
 					ropesToRemove.push(rope.id);
 					return; // このロープは移動しない
 				}
@@ -307,11 +309,6 @@ export class GameManager {
 				// アンカーの位置を更新（Kinematicボディ）
 				// 毎回新しいVector3インスタンスを作成
 				const newPosition = new RAPIER.Vector3(newX, translation.y, translation.z);
-
-				console.log(
-					`[GameManager] Moving rope ${rope.id}: x=${newX.toFixed(2)}, direction=${rope.direction}, speed=${rope.speed.toFixed(2)}`,
-				);
-
 				rope.anchorBody.setNextKinematicTranslation(newPosition);
 			} catch (error) {
 				console.error(
@@ -329,9 +326,6 @@ export class GameManager {
 		});
 
 		// 画面外に出たロープを削除（イテレーション後に実行）
-		console.log(
-			`[GameManager] Removing ${ropesToRemove.length} ropes: [${ropesToRemove.join(", ")}]`,
-		);
 		for (const id of ropesToRemove) {
 			this.removeRope(id);
 		}
@@ -349,51 +343,35 @@ export class GameManager {
 	private removeRope(id: string): void {
 		const rope = this.ropes.get(id);
 		if (!rope || !this.scene || !this.physics) {
-			console.warn(`[GameManager] Cannot remove rope ${id}: not found or missing dependencies`);
 			return;
 		}
 
-		console.log(`[GameManager] Starting removal of rope ${id}`, {
-			segmentCount: rope.segments.length,
-			jointCount: rope.joints.length,
-			hasAnchor: !!rope.anchorBody,
-			hasTreasure: !!rope.treasure,
-		});
-
 		try {
 			// ジョイントを削除
-			console.log(`[GameManager] Removing ${rope.joints.length} joints...`);
-			for (let i = 0; i < rope.joints.length; i++) {
-				const joint = rope.joints[i];
+			for (const joint of rope.joints) {
 				this.physics.getWorld().removeImpulseJoint(joint, true);
-				console.log(`[GameManager] Removed joint ${i}`);
 			}
 
 			// セグメントを削除（Physicsから登録解除してから物理ワールドから削除）
-			console.log(`[GameManager] Removing ${rope.segments.length} segments...`);
-			for (let i = 0; i < rope.segments.length; i++) {
-				const segment = rope.segments[i];
+			for (const segment of rope.segments) {
 				this.scene.removeObject(segment.mesh);
-				this.physics.unregisterBodyByReference(segment.body); // Physicsから登録解除
+				this.physics.unregisterBodyByReference(segment.body);
 				this.physics.getWorld().removeRigidBody(segment.body);
-				console.log(`[GameManager] Removed segment ${i}`);
 			}
 
 			// 宝物を削除（Physicsから登録解除してから物理ワールドから削除）
-			console.log(`[GameManager] Removing treasure...`);
 			this.scene.removeObject(rope.treasure.mesh);
-			this.physics.unregisterBodyByReference(rope.treasure.body); // Physicsから登録解除
+			this.physics.unregisterBodyByReference(rope.treasure.body);
 			this.physics.getWorld().removeRigidBody(rope.treasure.body);
 
 			// アンカーを削除（Physicsから登録解除してから物理ワールドから削除）
-			console.log(`[GameManager] Removing anchor...`);
-			this.physics.unregisterBodyByReference(rope.anchorBody); // Physicsから登録解除
+			this.physics.unregisterBodyByReference(rope.anchorBody);
 			this.physics.getWorld().removeRigidBody(rope.anchorBody);
 
 			// Mapから削除
 			this.ropes.delete(id);
 
-			console.log(`[GameManager] Successfully removed rope (${id})`);
+			console.log(`[GameManager] Removed rope (${id})`);
 		} catch (error) {
 			console.error(`[GameManager] Error removing rope ${id}:`, error);
 			// エラーが発生してもMapからは削除しておく

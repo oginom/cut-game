@@ -1353,3 +1353,41 @@ for (const id of ropesToRemove) {
 ### 次のステップ
 
 Step 5.3で難易度調整とバランス調整を行います。
+
+## Step 5.3: 難易度調整とバランス調整 - 完了事項
+
+### 完了した作業
+
+1. **ゲーム設定ファイルの作成**
+   - [src/config/gameConfig.ts](../src/config/gameConfig.ts)を作成
+   - すべてのゲームパラメータを一箇所に集約:
+     - `TIMER_CONFIG`: タイマー設定（制限時間30秒）
+     - `SPAWN_CONFIG`: 出現設定（間隔3.0s→1.5s、速度1.0→2.0）
+     - `DIFFICULTY_CONFIG`: 難易度設定（30秒でフル難易度）
+     - `ROPE_CONFIG`: ロープ設定（セグメント5個、長さ0.3、半径0.05、質量0.5）
+     - `TREASURE_CONFIG`: 宝物設定（金100点、銀50点、銅30点）
+     - `COMBO_CONFIG`: コンボ設定（タイムアウト3秒、ボーナス倍率10%）
+     - `PHYSICS_CONFIG`: 物理設定（重力-9.81、タイムステップ1/60）
+     - `CAMERA_CONFIG`: カメラ設定（FOV 75、位置(0,0,10)）
+
+2. **各コンポーネントの設定ファイル統合**
+   - GameManager.ts: TIMER_CONFIG, SPAWN_CONFIG, DIFFICULTY_CONFIG, ROPE_CONFIGを使用
+   - Treasure.ts: TREASURE_CONFIGを使用
+   - ScoreManager.ts: COMBO_CONFIGを使用
+   - Scene.ts: CAMERA_CONFIGを使用
+   - Physics.ts: PHYSICS_CONFIGを使用
+
+3. **パフォーマンス最適化**
+   - 詳細なデバッグログを削除してパフォーマンス向上
+   - ビルドサイズ: 2,933.01 kB (gzip: 1,025.25 kB)
+
+### Phase 5 完了
+
+Step 5.3の完了により、Phase 5（ゲームロジックの完成）が完全に終了しました。
+
+実装された機能:
+- ✅ 30秒タイマーシステム（Step 5.1）
+- ✅ 自動宝物出現システム（Step 5.2）
+- ✅ 難易度調整とバランス調整（Step 5.3）
+
+ゲームとして完成しました。

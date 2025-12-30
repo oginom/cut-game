@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { RenderStats, SceneConfig } from "../../types/scene";
+import { CAMERA_CONFIG, SCENE_CONFIG } from "../../config/gameConfig";
 
 export class Scene {
 	private scene: THREE.Scene;
@@ -20,10 +21,10 @@ export class Scene {
 	constructor() {
 		// デフォルト設定
 		this.config = {
-			backgroundColor: 0x000000,
-			cameraFov: 75,
-			cameraNear: 0.1,
-			cameraFar: 1000,
+			backgroundColor: SCENE_CONFIG.backgroundColor,
+			cameraFov: CAMERA_CONFIG.fov,
+			cameraNear: CAMERA_CONFIG.near,
+			cameraFar: CAMERA_CONFIG.far,
 		};
 
 		// シーンの作成
@@ -38,7 +39,11 @@ export class Scene {
 			this.config.cameraNear,
 			this.config.cameraFar,
 		);
-		this.camera.position.z = 5;
+		this.camera.position.set(
+			CAMERA_CONFIG.position.x,
+			CAMERA_CONFIG.position.y,
+			CAMERA_CONFIG.position.z,
+		);
 
 		// レンダラーの作成（透明背景を有効化）
 		this.renderer = new THREE.WebGLRenderer({
@@ -83,11 +88,17 @@ export class Scene {
 	 */
 	private setupLights(): void {
 		// 環境光
-		const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+		const ambientLight = new THREE.AmbientLight(
+			0xffffff,
+			SCENE_CONFIG.ambientLightIntensity,
+		);
 		this.scene.add(ambientLight);
 
 		// 平行光源
-		const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+		const directionalLight = new THREE.DirectionalLight(
+			0xffffff,
+			SCENE_CONFIG.directionalLightIntensity,
+		);
 		directionalLight.position.set(5, 10, 7.5);
 		directionalLight.castShadow = true;
 		this.scene.add(directionalLight);
