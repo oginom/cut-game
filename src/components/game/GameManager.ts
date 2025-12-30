@@ -1,4 +1,11 @@
 import * as THREE from "three";
+import {
+	DIFFICULTY_CONFIG,
+	GAME_BOUNDS,
+	ROPE_CONFIG,
+	SPAWN_CONFIG,
+	TIMER_CONFIG,
+} from "../../config/gameConfig";
 import type { CutResult, RopeConfig, RopeWithTreasure } from "../../types/game";
 import type { Handedness } from "../../types/gesture";
 import { convertTo3D } from "../../utils/coordinates";
@@ -6,6 +13,7 @@ import { CrabHand } from "../renderer/CrabHand";
 import type { Scene } from "../renderer/Scene";
 import { ScoreDisplay } from "../ui/ScoreDisplay";
 import { TimerDisplay } from "../ui/TimerDisplay";
+import { GameTimer } from "./GameTimer";
 import type { Physics } from "./Physics";
 import {
 	attachTreasureToRope,
@@ -14,17 +22,9 @@ import {
 	createRope,
 	cutRopeJoint,
 } from "./Rope";
-import { GameTimer } from "./GameTimer";
 import { ScoreManager } from "./ScoreManager";
 import { SpawnManager } from "./SpawnManager";
 import { createTreasure, getTreasureConfig } from "./Treasure";
-import {
-	TIMER_CONFIG,
-	SPAWN_CONFIG,
-	DIFFICULTY_CONFIG,
-	ROPE_CONFIG,
-	GAME_BOUNDS,
-} from "../../config/gameConfig";
 
 export class GameManager {
 	private scene: Scene | null = null;
@@ -308,19 +308,19 @@ export class GameManager {
 
 				// アンカーの位置を更新（Kinematicボディ）
 				// 毎回新しいVector3インスタンスを作成
-				const newPosition = new RAPIER.Vector3(newX, translation.y, translation.z);
+				const newPosition = new RAPIER.Vector3(
+					newX,
+					translation.y,
+					translation.z,
+				);
 				rope.anchorBody.setNextKinematicTranslation(newPosition);
 			} catch (error) {
-				console.error(
-					`[GameManager] Error updating rope ${rope.id}:`,
-					error,
-					{
-						hasAnchor: !!rope.anchorBody,
-						direction: rope.direction,
-						speed: rope.speed,
-						isCut: rope.isCut,
-					},
-				);
+				console.error(`[GameManager] Error updating rope ${rope.id}:`, error, {
+					hasAnchor: !!rope.anchorBody,
+					direction: rope.direction,
+					speed: rope.speed,
+					isCut: rope.isCut,
+				});
 				ropesToRemove.push(rope.id);
 			}
 		});

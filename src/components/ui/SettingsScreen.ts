@@ -41,9 +41,7 @@ export class SettingsScreen {
 			"カメラをOFFにすると、クリック操作のみでゲームをプレイできます。",
 			"camera-toggle",
 		);
-		this.cameraToggle = cameraItem.querySelector(
-			"input",
-		) as HTMLInputElement;
+		this.cameraToggle = cameraItem.querySelector("input") as HTMLInputElement;
 
 		// カメラトグル変更時の処理
 		this.cameraToggle.addEventListener("change", () => {

@@ -133,19 +133,20 @@ async function handleStateChange(newState: GameState) {
 			await runSetup();
 			break;
 
-		case "settings":
+		case "settings": {
 			settingsScreen.show();
 			// 現在の設定を画面に反映
 			const currentSettings = gameStateManager.getSettings();
 			settingsScreen.loadSettings(currentSettings);
 			break;
+		}
 
 		case "playing":
 			// ゲームを開始
 			await startGame();
 			break;
 
-		case "result":
+		case "result": {
 			resultScreen.show();
 			// スコアデータを取得して表示
 			const resultData = gameStateManager.getResultData();
@@ -155,6 +156,7 @@ async function handleStateChange(newState: GameState) {
 			// ゲームを停止
 			stopGame();
 			break;
+		}
 	}
 }
 

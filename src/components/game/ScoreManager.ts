@@ -1,6 +1,6 @@
+import { COMBO_CONFIG } from "../../config/gameConfig";
 import type { TreasureConfig } from "../../types/game";
 import type { ScoreData, ScoreEvent } from "../../types/score";
-import { COMBO_CONFIG } from "../../config/gameConfig";
 
 export class ScoreManager {
 	private scoreData: ScoreData = {

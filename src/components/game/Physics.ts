@@ -1,7 +1,7 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
-import type { PhysicsConfig, RigidBodyHandle } from "../../types/physics";
 import { PHYSICS_CONFIG } from "../../config/gameConfig";
+import type { PhysicsConfig, RigidBodyHandle } from "../../types/physics";
 
 export class Physics {
 	private RAPIER: typeof RAPIER | null = null;

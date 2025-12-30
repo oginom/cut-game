@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import type { RenderStats, SceneConfig } from "../../types/scene";
 import { CAMERA_CONFIG, SCENE_CONFIG } from "../../config/gameConfig";
+import type { RenderStats, SceneConfig } from "../../types/scene";
 
 export class Scene {
 	private scene: THREE.Scene;

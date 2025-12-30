@@ -1,7 +1,7 @@
 import * as THREE from "three";
+import { TREASURE_CONFIG } from "../../config/gameConfig";
 import type { Treasure, TreasureConfig } from "../../types/game";
 import type { Physics } from "./Physics";
-import { TREASURE_CONFIG } from "../../config/gameConfig";
 
 /**
  * 宝物の設定を取得

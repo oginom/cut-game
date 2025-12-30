@@ -9,8 +9,9 @@ export class SpawnManager {
 	private difficultyConfig: DifficultyConfig | null = null;
 	private isActive = false;
 	private timeSinceLastSpawn = 0;
-	private onSpawn: ((direction: "left" | "right", speed: number) => void) | null =
-		null;
+	private onSpawn:
+		| ((direction: "left" | "right", speed: number) => void)
+		| null = null;
 
 	/**
 	 * Initialize the spawn manager
