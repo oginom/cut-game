@@ -22,25 +22,24 @@ export interface HandTrackerCallbacks {
 	onError?: (error: Error) => void;
 }
 
-export interface FaceDetection {
-	boundingBox: {
-		xCenter: number; // 0-1の正規化座標
-		yCenter: number; // 0-1の正規化座標
-		width: number;
-		height: number;
-	};
-	keypoints: Array<{
-		x: number;
-		y: number;
-	}>; // 6個のキーポイント（右目、左目、鼻先、口、右耳、左耳）
-	score: number; // 検出の信頼度
+export interface PoseLandmark {
+	x: number; // 0-1の正規化座標
+	y: number; // 0-1の正規化座標
+	z: number; // 深度情報
+	visibility?: number; // ランドマークの可視性（0-1）
 }
 
-export interface FaceTrackerConfig {
+export interface PoseData {
+	landmarks: PoseLandmark[]; // 33個のランドマーク
+	worldLandmarks?: PoseLandmark[]; // 3D世界座標
+}
+
+export interface PoseTrackerConfig {
 	minDetectionConfidence: number;
+	minTrackingConfidence: number;
 }
 
-export interface FaceTrackerCallbacks {
-	onResults: (faces: FaceDetection[]) => void;
+export interface PoseTrackerCallbacks {
+	onResults: (poses: PoseData[]) => void;
 	onError?: (error: Error) => void;
 }

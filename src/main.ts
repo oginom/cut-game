@@ -197,8 +197,9 @@ async function runSetup() {
 					minDetectionConfidence: 0.7,
 					minTrackingConfidence: 0.5,
 				},
-				face: {
+				pose: {
 					minDetectionConfidence: 0.7,
+					minTrackingConfidence: 0.5,
 				},
 				gesture: {
 					minDetectionConfidence: 0.7,
@@ -208,7 +209,11 @@ async function runSetup() {
 			},
 			{
 				onHandResults: () => {},
-				onFaceResults: () => {},
+				onPoseResults: (poses) => {
+					if (poses.length > 0) {
+						console.log(`[Main] Pose detected: ${poses.length} pose(s)`);
+					}
+				},
 				onGestureResults: () => {},
 				onVCloseAction: () => {},
 				onError: (error) => {
@@ -323,8 +328,9 @@ async function startGame() {
 					minDetectionConfidence: 0.7,
 					minTrackingConfidence: 0.5,
 				},
-				face: {
+				pose: {
 					minDetectionConfidence: 0.7,
+					minTrackingConfidence: 0.5,
 				},
 				gesture: {
 					minDetectionConfidence: 0.7,
@@ -359,8 +365,11 @@ async function startGame() {
 						}
 					}
 				},
-				onFaceResults: () => {
-					// 顔のトラッキングは現在使用しない
+				onPoseResults: (poses) => {
+					if (poses.length > 0) {
+						// 姿勢検出結果をログ出力（デバッグ用）
+						// console.log(`[Main] ${poses.length} pose(s) detected`);
+					}
 				},
 				onGestureResults: (gestures) => {
 					if (!gameManager) return;
@@ -413,7 +422,7 @@ async function startGame() {
 				`[Scene] FPS: ${sceneStats.fps}, Draw Calls: ${sceneStats.drawCalls}, Triangles: ${sceneStats.triangles}`,
 			);
 			console.log(
-				`[Tracking] FPS: ${trackingStats.fps}, Hand: ${(trackingStats.handDetectionRate * 100).toFixed(1)}%, Face: ${(trackingStats.faceDetectionRate * 100).toFixed(1)}%`,
+				`[Tracking] FPS: ${trackingStats.fps}, Hand: ${(trackingStats.handDetectionRate * 100).toFixed(1)}%, Pose: ${(trackingStats.poseDetectionRate * 100).toFixed(1)}%`,
 			);
 		}, 5000);
 	} catch (error) {

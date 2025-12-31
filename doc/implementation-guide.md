@@ -1391,3 +1391,78 @@ Step 5.3の完了により、Phase 5（ゲームロジックの完成）が完�
 - ✅ 難易度調整とバランス調整（Step 5.3）
 
 ゲームとして完成しました。
+
+---
+
+## トラッキング機能の更新: 顔検出から姿勢検出への置き換え
+
+### 完了した作業
+
+1. **型定義の更新**
+   - [src/types/tracking.ts](../src/types/tracking.ts)を更新
+   - `FaceDetection`, `FaceTrackerConfig`, `FaceTrackerCallbacks`を削除
+   - `PoseLandmark`: 姿勢のランドマーク座標（x, y, z, visibility）
+   - `PoseData`: 姿勢データ（33個のランドマーク、3D世界座標）
+   - `PoseTrackerConfig`: 姿勢検出設定
+   - `PoseTrackerCallbacks`: コールバック定義
+
+2. **PoseTrackerコンポーネントの実装**
+   - [src/components/camera/PoseTracker.ts](../src/components/camera/PoseTracker.ts)を作成
+   - MediaPipe PoseLandmarkerを使用
+   - 実装した機能:
+     - `init()`: PoseLandmarkerの初期化（CDNからモデル読み込み）
+     - `start()`: 姿勢検出開始（requestAnimationFrameループ）
+     - `stop()`: 姿勢検出停止
+     - `enableDebugDraw()` / `disableDebugDraw()`: デバッグ描画制御
+   - デバッグ描画機能:
+     - 33個のランドマーク点を描画
+     - 骨格接続線を描画（顔、胴体、両腕、両脚）
+     - object-fit: cover対応の座標変換
+
+3. **TrackingManagerの更新**
+   - [src/components/camera/TrackingManager.ts](../src/components/camera/TrackingManager.ts)を更新
+   - `FaceTracker`を`PoseTracker`に置き換え
+   - インターフェースの更新:
+     - `TrackingManagerConfig.face` → `TrackingManagerConfig.pose`
+     - `TrackingManagerCallbacks.onFaceResults` → `TrackingManagerCallbacks.onPoseResults`
+     - `PerformanceStats.faceDetectionRate` → `PerformanceStats.poseDetectionRate`
+   - 全メソッドを更新:
+     - `init()`, `start()`, `stop()`, `dispose()`, `enableDebug()`, `disableDebug()`
+     - `getFaceData()` → `getPoseData()`
+     - パフォーマンス統計の計測
+
+4. **FaceTrackerの削除**
+   - [src/components/camera/FaceTracker.ts](../src/components/camera/FaceTracker.ts)を削除
+   - もう使用しないため削除
+
+5. **main.tsの更新**
+   - [src/main.ts](../src/main.ts)を更新
+   - `runSetup()`関数:
+     - `face`設定を`pose`設定に変更
+     - `onFaceResults`を`onPoseResults`に変更
+     - 姿勢検出結果のログ出力
+   - `startGame()`関数:
+     - TrackingManagerの初期化時に`pose`設定を使用
+     - `onPoseResults`コールバックを実装
+   - パフォーマンス統計:
+     - `faceDetectionRate`を`poseDetectionRate`に変更
+
+6. **ビルド確認**
+   - TypeScriptコンパイルエラーなし
+   - ビルド成功
+   - ビルドサイズ: 2,933.51 kB (gzip: 1,025.21 kB)
+
+### 実装のポイント
+
+- **MediaPipe PoseLandmarker**: 33個のランドマークで全身の姿勢を検出
+- **骨格の描画**: 顔、胴体、腕、脚の接続関係を可視化
+- **FaceTrackerとの互換性**: 同じパターン（init, start, stop, enableDebugDraw）で実装
+- **並行実行**: HandTracker、PoseTracker、GestureTrackerが独立して動作
+
+### 検証方法
+
+1. `pnpm run dev`でアプリを起動
+2. ブラウザで画面を開き、カメラを許可
+3. デバッグcanvasに姿勢のランドマークと骨格が表示されることを確認
+4. コンソールで姿勢検出のログを確認
+5. パフォーマンス統計で姿勢検出率が表示されることを確認

@@ -1,17 +1,17 @@
 import {
-	type Detection,
-	FaceDetector,
 	FilesetResolver,
+	type PoseLandmarkerResult,
+	PoseLandmarker,
 } from "@mediapipe/tasks-vision";
 import type {
-	FaceDetection,
-	FaceTrackerCallbacks,
-	FaceTrackerConfig,
+	PoseData,
+	PoseTrackerCallbacks,
+	PoseTrackerConfig,
 } from "../../types/tracking";
 
-export class FaceTracker {
-	private faceDetector: FaceDetector | null = null;
-	private callbacks: FaceTrackerCallbacks | null = null;
+export class PoseTracker {
+	private poseLandmarker: PoseLandmarker | null = null;
+	private callbacks: PoseTrackerCallbacks | null = null;
 	private tracking = false;
 	private debugCanvas: HTMLCanvasElement | null = null;
 	private debugCtx: CanvasRenderingContext2D | null = null;
@@ -19,11 +19,11 @@ export class FaceTracker {
 	private videoElement: HTMLVideoElement | null = null;
 
 	/**
-	 * FaceTrackerを初期化する
+	 * PoseTrackerを初期化する
 	 */
 	async init(
-		config: FaceTrackerConfig,
-		callbacks: FaceTrackerCallbacks,
+		config: PoseTrackerConfig,
+		callbacks: PoseTrackerCallbacks,
 	): Promise<void> {
 		this.callbacks = callbacks;
 
@@ -32,32 +32,35 @@ export class FaceTracker {
 			"https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm",
 		);
 
-		// FaceDetectorを作成
-		this.faceDetector = await FaceDetector.createFromOptions(vision, {
+		// PoseLandmarkerを作成
+		this.poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
 			baseOptions: {
 				modelAssetPath:
-					"https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+					"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
 				delegate: "GPU",
 			},
 			runningMode: "VIDEO",
-			minDetectionConfidence: config.minDetectionConfidence,
+			minPoseDetectionConfidence: config.minDetectionConfidence,
+			minTrackingConfidence: config.minTrackingConfidence,
 		});
+
+		console.log("[PoseTracker] Initialized");
 	}
 
 	/**
 	 * トラッキングを開始する
 	 */
 	async start(videoElement: HTMLVideoElement): Promise<void> {
-		if (!this.faceDetector) {
-			throw new Error("[FaceTracker] Not initialized. Call init() first.");
+		if (!this.poseLandmarker) {
+			throw new Error("[PoseTracker] Not initialized. Call init() first.");
 		}
 
 		this.videoElement = videoElement;
 		this.tracking = true;
 
 		// トラッキングループを開始
-		const detectFaces = () => {
-			if (!this.tracking || !this.faceDetector || !this.videoElement) {
+		const detectPose = () => {
+			if (!this.tracking || !this.poseLandmarker || !this.videoElement) {
 				this.animationFrameId = null;
 				return;
 			}
@@ -68,7 +71,7 @@ export class FaceTracker {
 					this.videoElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
 				) {
 					const startTimeMs = performance.now();
-					const results = this.faceDetector.detectForVideo(
+					const results = this.poseLandmarker.detectForVideo(
 						this.videoElement,
 						startTimeMs,
 					);
@@ -76,7 +79,7 @@ export class FaceTracker {
 				}
 			} catch (error) {
 				// 検出エラー - ログ出力して続行
-				console.error("[FaceTracker] Detection error:", error);
+				console.error("[PoseTracker] Detection error:", error);
 				if (this.callbacks?.onError) {
 					this.callbacks.onError(
 						error instanceof Error ? error : new Error(String(error)),
@@ -86,13 +89,13 @@ export class FaceTracker {
 
 			// trackingフラグを再確認してから次のフレームをスケジュール
 			if (this.tracking) {
-				this.animationFrameId = requestAnimationFrame(detectFaces);
+				this.animationFrameId = requestAnimationFrame(detectPose);
 			} else {
 				this.animationFrameId = null;
 			}
 		};
 
-		detectFaces();
+		detectPose();
 	}
 
 	/**
@@ -121,9 +124,9 @@ export class FaceTracker {
 		this.stop();
 
 		// MediaPipeモデルを解放
-		if (this.faceDetector) {
-			this.faceDetector.close();
-			this.faceDetector = null;
+		if (this.poseLandmarker) {
+			this.poseLandmarker.close();
+			this.poseLandmarker = null;
 		}
 
 		// 参照をクリア
@@ -132,7 +135,7 @@ export class FaceTracker {
 		this.debugCanvas = null;
 		this.debugCtx = null;
 
-		console.log("[FaceTracker] Disposed");
+		console.log("[PoseTracker] Disposed");
 	}
 
 	/**
@@ -154,45 +157,45 @@ export class FaceTracker {
 	/**
 	 * MediaPipeからの結果を処理する
 	 */
-	private onResults(results: { detections: Detection[] }): void {
+	private onResults(results: PoseLandmarkerResult): void {
 		// デバッグ描画
 		if (this.debugCanvas && this.debugCtx) {
-			this.drawDebug(results.detections);
+			this.drawDebug(results);
 		}
 
-		// 顔のデータを変換
-		const faces: FaceDetection[] = [];
+		// 姿勢のデータを変換
+		const poses: PoseData[] = [];
 
-		for (const detection of results.detections) {
-			if (detection.boundingBox && detection.keypoints) {
-				faces.push({
-					boundingBox: {
-						xCenter:
-							detection.boundingBox.originX + detection.boundingBox.width / 2,
-						yCenter:
-							detection.boundingBox.originY + detection.boundingBox.height / 2,
-						width: detection.boundingBox.width,
-						height: detection.boundingBox.height,
-					},
-					keypoints: detection.keypoints.map((kp) => ({
-						x: kp.x,
-						y: kp.y,
-					})),
-					score: detection.categories[0]?.score || 0,
-				});
-			}
+		for (let i = 0; i < results.landmarks.length; i++) {
+			const landmarks = results.landmarks[i];
+			const worldLandmarks = results.worldLandmarks?.[i];
+
+			poses.push({
+				landmarks: landmarks.map((lm) => ({
+					x: lm.x,
+					y: lm.y,
+					z: lm.z,
+					visibility: lm.visibility,
+				})),
+				worldLandmarks: worldLandmarks?.map((lm) => ({
+					x: lm.x,
+					y: lm.y,
+					z: lm.z,
+					visibility: lm.visibility,
+				})),
+			});
 		}
 
 		// コールバックを呼び出す
 		if (this.callbacks?.onResults) {
-			this.callbacks.onResults(faces);
+			this.callbacks.onResults(poses);
 		}
 	}
 
 	/**
 	 * デバッグ描画
 	 */
-	private drawDebug(detections: Detection[]): void {
+	private drawDebug(results: PoseLandmarkerResult): void {
 		if (!this.debugCanvas || !this.debugCtx || !this.videoElement) return;
 
 		const ctx = this.debugCtx;
@@ -223,32 +226,95 @@ export class FaceTracker {
 			offsetY = (canvas.height - scaleY) / 2;
 		}
 
-		// 顔のバウンディングボックスとキーポイントを描画
-		for (const detection of detections) {
-			if (detection.boundingBox) {
-				const box = detection.boundingBox;
-				const x = box.originX * scaleX + offsetX;
-				const y = box.originY * scaleY + offsetY;
-				const w = box.width * scaleX;
-				const h = box.height * scaleY;
+		// 姿勢のランドマークと骨格を描画
+		for (const landmarks of results.landmarks) {
+			// 骨格の接続を描画
+			this.drawPoseConnections(ctx, landmarks, scaleX, scaleY, offsetX, offsetY);
 
-				// バウンディングボックスを描画
-				ctx.strokeStyle = "#00FFFF";
-				ctx.lineWidth = 2;
-				ctx.strokeRect(x, y, w, h);
+			// ランドマークを描画
+			ctx.fillStyle = "#00FF00";
+			for (const landmark of landmarks) {
+				const x = landmark.x * scaleX + offsetX;
+				const y = landmark.y * scaleY + offsetY;
+
+				ctx.beginPath();
+				ctx.arc(x, y, 4, 0, 2 * Math.PI);
+				ctx.fill();
 			}
+		}
+	}
 
-			// キーポイントを描画
-			if (detection.keypoints) {
-				ctx.fillStyle = "#00FFFF";
-				for (const kp of detection.keypoints) {
-					const x = kp.x * scaleX + offsetX;
-					const y = kp.y * scaleY + offsetY;
+	/**
+	 * 姿勢の骨格接続を描画
+	 */
+	private drawPoseConnections(
+		ctx: CanvasRenderingContext2D,
+		landmarks: Array<{ x: number; y: number; z: number; visibility?: number }>,
+		scaleX: number,
+		scaleY: number,
+		offsetX: number,
+		offsetY: number,
+	): void {
+		// MediaPipe Poseの骨格接続定義（33個のランドマーク）
+		const connections = [
+			// 顔
+			[0, 1],
+			[1, 2],
+			[2, 3],
+			[3, 7],
+			[0, 4],
+			[4, 5],
+			[5, 6],
+			[6, 8],
+			// 胴体
+			[9, 10],
+			[11, 12],
+			[11, 13],
+			[13, 15],
+			[15, 17],
+			[15, 19],
+			[15, 21],
+			[17, 19],
+			[12, 14],
+			[14, 16],
+			[16, 18],
+			[16, 20],
+			[16, 22],
+			[18, 20],
+			[11, 23],
+			[12, 24],
+			[23, 24],
+			// 左脚
+			[23, 25],
+			[25, 27],
+			[27, 29],
+			[27, 31],
+			[29, 31],
+			// 右脚
+			[24, 26],
+			[26, 28],
+			[28, 30],
+			[28, 32],
+			[30, 32],
+		];
 
-					ctx.beginPath();
-					ctx.arc(x, y, 4, 0, 2 * Math.PI);
-					ctx.fill();
-				}
+		ctx.strokeStyle = "#00FF00";
+		ctx.lineWidth = 2;
+
+		for (const [startIdx, endIdx] of connections) {
+			if (startIdx < landmarks.length && endIdx < landmarks.length) {
+				const start = landmarks[startIdx];
+				const end = landmarks[endIdx];
+
+				const x1 = start.x * scaleX + offsetX;
+				const y1 = start.y * scaleY + offsetY;
+				const x2 = end.x * scaleX + offsetX;
+				const y2 = end.y * scaleY + offsetY;
+
+				ctx.beginPath();
+				ctx.moveTo(x1, y1);
+				ctx.lineTo(x2, y2);
+				ctx.stroke();
 			}
 		}
 	}

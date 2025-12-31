@@ -5,24 +5,24 @@ import type {
 	Handedness,
 } from "../../types/gesture";
 import type {
-	FaceDetection,
-	FaceTrackerConfig,
+	PoseData,
+	PoseTrackerConfig,
 	HandData,
 	HandTrackerConfig,
 } from "../../types/tracking";
-import { FaceTracker } from "./FaceTracker";
+import { PoseTracker } from "./PoseTracker";
 import { GestureTracker } from "./GestureTracker";
 import { HandTracker } from "./HandTracker";
 
 export interface TrackingManagerConfig {
 	hand: HandTrackerConfig;
-	face: FaceTrackerConfig;
+	pose: PoseTrackerConfig;
 	gesture?: GestureTrackerConfig;
 }
 
 export interface TrackingManagerCallbacks {
 	onHandResults?: (hands: HandData[]) => void;
-	onFaceResults?: (faces: FaceDetection[]) => void;
+	onPoseResults?: (poses: PoseData[]) => void;
 	onGestureResults?: (gestures: Map<Handedness, GestureData>) => void;
 	onVCloseAction?: (handedness: Handedness) => void;
 	onError?: (error: Error) => void;
@@ -32,12 +32,12 @@ export interface PerformanceStats {
 	fps: number;
 	averageLatency: number; // ms
 	handDetectionRate: number; // 0-1
-	faceDetectionRate: number; // 0-1
+	poseDetectionRate: number; // 0-1
 }
 
 export class TrackingManager {
 	private handTracker: HandTracker;
-	private faceTracker: FaceTracker;
+	private poseTracker: PoseTracker;
 	private gestureTracker: GestureTracker;
 	private callbacks: TrackingManagerCallbacks | null = null;
 	private tracking = false;
@@ -49,17 +49,17 @@ export class TrackingManager {
 	private latencySum = 0;
 	private latencyCount = 0;
 	private handDetectionCount = 0;
-	private faceDetectionCount = 0;
+	private poseDetectionCount = 0;
 	private totalFrames = 0;
 
 	// トラッキング結果の保持
 	private lastHandData: HandData[] = [];
-	private lastFaceData: FaceDetection[] = [];
+	private lastPoseData: PoseData[] = [];
 	private lastGestureData: Map<Handedness, GestureData> = new Map();
 
 	constructor() {
 		this.handTracker = new HandTracker();
-		this.faceTracker = new FaceTracker();
+		this.poseTracker = new PoseTracker();
 		this.gestureTracker = new GestureTracker();
 	}
 
@@ -85,14 +85,14 @@ export class TrackingManager {
 				onError: this.callbacks.onError,
 			});
 
-			// FaceTrackerを初期化
-			await this.faceTracker.init(config.face, {
-				onResults: (faces) => {
-					this.lastFaceData = faces;
-					if (faces.length > 0) {
-						this.faceDetectionCount++;
+			// PoseTrackerを初期化
+			await this.poseTracker.init(config.pose, {
+				onResults: (poses) => {
+					this.lastPoseData = poses;
+					if (poses.length > 0) {
+						this.poseDetectionCount++;
 					}
-					this.callbacks?.onFaceResults?.(faces);
+					this.callbacks?.onPoseResults?.(poses);
 				},
 				onError: this.callbacks.onError,
 			});
@@ -142,13 +142,13 @@ export class TrackingManager {
 			// 全トラッカーを開始（Promise.allSettledで部分的な失敗に対応）
 			const results = await Promise.allSettled([
 				this.handTracker.start(videoElement),
-				this.faceTracker.start(videoElement),
+				this.poseTracker.start(videoElement),
 				this.gestureTracker.start(videoElement, gestureCallbacks),
 			]);
 
 			// 失敗したトラッカーをチェック
 			const failures: { name: string; reason: unknown }[] = [];
-			const trackerNames = ["HandTracker", "FaceTracker", "GestureTracker"];
+			const trackerNames = ["HandTracker", "PoseTracker", "GestureTracker"];
 
 			results.forEach((result, index) => {
 				if (result.status === "rejected") {
@@ -168,7 +168,7 @@ export class TrackingManager {
 				// すべて失敗 - クリーンアップして例外をスロー
 				this.tracking = false;
 				this.handTracker.stop();
-				this.faceTracker.stop();
+				this.poseTracker.stop();
 				this.gestureTracker.stop();
 
 				const error = new Error(
@@ -188,7 +188,7 @@ export class TrackingManager {
 				// 失敗したトラッカーは停止状態にする
 				failures.forEach((failure) => {
 					if (failure.name === "HandTracker") this.handTracker.stop();
-					if (failure.name === "FaceTracker") this.faceTracker.stop();
+					if (failure.name === "PoseTracker") this.poseTracker.stop();
 					if (failure.name === "GestureTracker") this.gestureTracker.stop();
 				});
 
@@ -208,7 +208,7 @@ export class TrackingManager {
 			// 予期しないエラー - 完全にクリーンアップ
 			this.tracking = false;
 			this.handTracker.stop();
-			this.faceTracker.stop();
+			this.poseTracker.stop();
 			this.gestureTracker.stop();
 
 			const wrappedError =
@@ -224,7 +224,7 @@ export class TrackingManager {
 	stop(): void {
 		this.tracking = false;
 		this.handTracker.stop();
-		this.faceTracker.stop();
+		this.poseTracker.stop();
 		this.gestureTracker.stop();
 	}
 
@@ -244,12 +244,12 @@ export class TrackingManager {
 
 		// 各トラッカーのリソースを解放
 		this.handTracker.dispose();
-		this.faceTracker.dispose();
+		this.poseTracker.dispose();
 		this.gestureTracker.dispose();
 
 		// データをクリア
 		this.lastHandData = [];
-		this.lastFaceData = [];
+		this.lastPoseData = [];
 		this.lastGestureData.clear();
 
 		// コールバックをクリア
@@ -263,7 +263,7 @@ export class TrackingManager {
 	 */
 	enableDebug(canvas: HTMLCanvasElement): void {
 		this.handTracker.enableDebugDraw(canvas);
-		this.faceTracker.enableDebugDraw(canvas);
+		this.poseTracker.enableDebugDraw(canvas);
 	}
 
 	/**
@@ -271,7 +271,7 @@ export class TrackingManager {
 	 */
 	disableDebug(): void {
 		this.handTracker.disableDebugDraw();
-		this.faceTracker.disableDebugDraw();
+		this.poseTracker.disableDebugDraw();
 	}
 
 	/**
@@ -282,10 +282,10 @@ export class TrackingManager {
 	}
 
 	/**
-	 * 最新の顔のデータを取得
+	 * 最新の姿勢データを取得
 	 */
-	getFaceData(): FaceDetection[] {
-		return this.lastFaceData;
+	getPoseData(): PoseData[] {
+		return this.lastPoseData;
 	}
 
 	/**
@@ -303,14 +303,14 @@ export class TrackingManager {
 			this.latencyCount > 0 ? this.latencySum / this.latencyCount : 0;
 		const handRate =
 			this.totalFrames > 0 ? this.handDetectionCount / this.totalFrames : 0;
-		const faceRate =
-			this.totalFrames > 0 ? this.faceDetectionCount / this.totalFrames : 0;
+		const poseRate =
+			this.totalFrames > 0 ? this.poseDetectionCount / this.totalFrames : 0;
 
 		return {
 			fps: this.currentFps,
 			averageLatency: avgLatency,
 			handDetectionRate: handRate,
-			faceDetectionRate: faceRate,
+			poseDetectionRate: poseRate,
 		};
 	}
 
@@ -324,7 +324,7 @@ export class TrackingManager {
 		this.latencySum = 0;
 		this.latencyCount = 0;
 		this.handDetectionCount = 0;
-		this.faceDetectionCount = 0;
+		this.poseDetectionCount = 0;
 		this.totalFrames = 0;
 	}
 
