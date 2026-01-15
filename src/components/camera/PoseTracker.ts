@@ -1,7 +1,7 @@
 import {
 	FilesetResolver,
-	type PoseLandmarkerResult,
 	PoseLandmarker,
+	type PoseLandmarkerResult,
 } from "@mediapipe/tasks-vision";
 import type {
 	PoseData,
@@ -229,7 +229,14 @@ export class PoseTracker {
 		// 姿勢のランドマークと骨格を描画
 		for (const landmarks of results.landmarks) {
 			// 骨格の接続を描画
-			this.drawPoseConnections(ctx, landmarks, scaleX, scaleY, offsetX, offsetY);
+			this.drawPoseConnections(
+				ctx,
+				landmarks,
+				scaleX,
+				scaleY,
+				offsetX,
+				offsetY,
+			);
 
 			// ランドマークを描画
 			ctx.fillStyle = "#00FF00";
