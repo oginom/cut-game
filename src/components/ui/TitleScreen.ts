@@ -29,7 +29,7 @@ export class TitleScreen {
 		// タイトル
 		const title = document.createElement("h1");
 		title.className = "title";
-		title.textContent = "新春カニカニパニック!";
+		title.textContent = "カニゲーム";
 
 		// 注意事項
 		const notice = document.createElement("div");

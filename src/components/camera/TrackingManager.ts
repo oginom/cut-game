@@ -5,14 +5,14 @@ import type {
 	Handedness,
 } from "../../types/gesture";
 import type {
-	PoseData,
-	PoseTrackerConfig,
 	HandData,
 	HandTrackerConfig,
+	PoseData,
+	PoseTrackerConfig,
 } from "../../types/tracking";
-import { PoseTracker } from "./PoseTracker";
 import { GestureTracker } from "./GestureTracker";
 import { HandTracker } from "./HandTracker";
+import { PoseTracker } from "./PoseTracker";
 
 export interface TrackingManagerConfig {
 	hand: HandTrackerConfig;
